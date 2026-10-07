@@ -284,6 +284,9 @@ function handleCredentialResponse(response){
   // Keep the Google ID token: the backend verifies it with Google instead of
   // trusting the email (v2 DashboardBackend.gs).
   currentUser = { email, name: payload.name, picture: payload.picture, idToken: response.credential };
+  // Remember the sign-in so a page refresh doesn't ask again (until the
+  // Google token expires, ~1 hour — after that auto sign-in takes over).
+  try{ localStorage.setItem(SESSION_KEY, response.credential); }catch(e){}
   document.getElementById('deniedBox').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
@@ -292,10 +295,49 @@ function handleCredentialResponse(response){
   loadReport();
 }
 
-function signOut(){
+const SESSION_KEY = 'hub-dashboard-idtoken';
+
+// Returns true if a still-valid saved sign-in was restored.
+function restoreSession(){
+  let token = null;
+  try{ token = localStorage.getItem(SESSION_KEY); }catch(e){}
+  if(!token) return false;
+  try{
+    const payload = JSON.parse(b64UrlDecode(token.split('.')[1]));
+    if(Number(payload.exp || 0) * 1000 - 60000 > Date.now()){
+      handleCredentialResponse({ credential: token });
+      return true;
+    }
+  }catch(e){}
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+  return false;
+}
+
+function showGate(){
   currentUser = null;
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('gate').style.display = 'flex';
+}
+
+// Saved sign-in expired: ask Google to sign the same account in again
+// automatically (no click needed for someone who signed in before).
+let reSignInTried = false;
+function reSignIn(message){
+  showGate();
+  if(reSignInTried){
+    // Already retried once on this page — don't loop; show why and let the user click.
+    const box = document.getElementById('deniedBox');
+    box.textContent = message || 'กรุณาเข้าสู่ระบบใหม่';
+    box.style.display = 'block';
+    return;
+  }
+  reSignInTried = true;
+  if(window.google && google.accounts) google.accounts.id.prompt();
+}
+
+function signOut(){
+  showGate();
   if(window.google && google.accounts) google.accounts.id.disableAutoSelect();
 }
 
@@ -371,12 +413,16 @@ window.onload = function(){
       '<p style="color:var(--fail);font-weight:700;font-size:14px;">ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ในไฟล์นี้ — เติม ?preview=1 ต่อท้าย URL เพื่อดูตัวอย่างหน้าตาได้โดยไม่ต้องล็อกอิน</p>';
     return;
   }
+  const restored = restoreSession();
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
-    callback: handleCredentialResponse
+    callback: handleCredentialResponse,
+    auto_select: true,
+    use_fedcm_for_prompt: true
   });
   google.accounts.id.renderButton(document.getElementById('googleBtn'),
     { theme: 'outline', size: 'large', text: 'signin_with' });
+  if(!restored) google.accounts.id.prompt();
 };
 
 function showToast(msg){
@@ -395,13 +441,15 @@ async function loadReport(){
     const res = await fetch(`${BACKEND_URL}?action=report&email=${encodeURIComponent(currentUser.email)}&idToken=${encodeURIComponent(currentUser.idToken || '')}`);
     const data = await res.json();
     if(!data.ok){
-      if(/สิทธิ์|เข้าสู่ระบบ/.test(data.error || '')){
+      if(/หมดอายุ|ไม่ถูกต้อง|กรุณาเข้าสู่ระบบ/.test(data.error || '')){
+        reSignIn(data.error);
+        return;
+      }
+      if(/สิทธิ์/.test(data.error || '')){
         const email = currentUser.email;
         signOut();
         const box = document.getElementById('deniedBox');
-        box.textContent = /สิทธิ์/.test(data.error)
-          ? `บัญชี ${email} ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้ — ติดต่อผู้ดูแลเพื่อขอสิทธิ์`
-          : data.error;
+        box.textContent = `บัญชี ${email} ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้ — ติดต่อผู้ดูแลเพื่อขอสิทธิ์`;
         box.style.display = 'block';
         return;
       }
