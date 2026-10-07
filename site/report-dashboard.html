@@ -287,7 +287,9 @@ function handleCredentialResponse(response){
     document.getElementById('deniedBox').style.display = 'block';
     return;
   }
-  currentUser = { email, name: payload.name, picture: payload.picture };
+  // Keep the Google ID token: the backend verifies it with Google instead of
+  // trusting the email (v2 DashboardBackend.gs).
+  currentUser = { email, name: payload.name, picture: payload.picture, idToken: response.credential };
   document.getElementById('deniedBox').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
@@ -395,7 +397,8 @@ async function loadReport(){
     return;
   }
   try{
-    const res = await fetch(`${BACKEND_URL}?action=report&email=${encodeURIComponent(currentUser.email)}`);
+    // idToken for the hardened backend; email kept so the original v1 script still works.
+    const res = await fetch(`${BACKEND_URL}?action=report&email=${encodeURIComponent(currentUser.email)}&idToken=${encodeURIComponent(currentUser.idToken || '')}`);
     const data = await res.json();
     if(!data.ok){ showToast(data.error || 'โหลดข้อมูลไม่สำเร็จ'); return; }
     reportRows = data.rows || [];

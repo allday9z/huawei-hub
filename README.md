@@ -15,3 +15,16 @@ Google account — paste its `/exec` URLs into `WEBHOOK_URL` (checklist) and
 
 Changes vs. the supplied files: portal links point at `/checklist` and
 `/report-dashboard`; a minimal `<head>` (viewport + title) was added to each page.
+
+## Apps Script (v2, hardened) — `apps-script/`
+
+- `ChecklistWebhook.gs` — writes a submission into the branch tab; v2 only accepts
+  the 9 branch tab names, serializes writes with a script lock, always rewrites the
+  Morning Brief detail cell, validates input.
+- `DashboardBackend.gs` — returns the report table; v2 verifies the Google sign-in
+  ID token (tokeninfo: signature/expiry, audience = our OAuth Client ID, verified
+  email on ALLOWED_EMAILS) instead of trusting an `email=` URL parameter.
+  Set `GOOGLE_CLIENT_ID` in both this script and `report-dashboard.html`.
+
+The dashboard page sends both `idToken` (v2) and `email` (so the original v1
+script keeps working until v2 is deployed).
