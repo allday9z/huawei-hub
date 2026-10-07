@@ -34,7 +34,10 @@ const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.goo
 // Everyone allowed to view the Report Dashboard (Google account emails).
 const ALLOWED_EMAILS = [
   "marketing.uficon@gmail.com",
-  "benyapakamonphan@gmail.com"
+  "benyapakamonphan@gmail.com",
+  "th.verapat@gmail.com",
+  "jomyutdamon1211@gmail.com",
+  "qwe031168492@gmail.com"
   // "someone.else@uficon.com",
 ];
 
