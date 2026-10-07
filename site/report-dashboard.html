@@ -161,14 +161,27 @@
     box-shadow:0 1px 2px rgba(16,20,24,.05);}
   .back-link:hover{border-color:var(--red);color:var(--red-dark);}
   .signout{white-space:nowrap;}
+  .chart-branch-wide{width:250px;}
   /* phones: header wraps under the title; narrower chart labels */
   @media (max-width:560px){
     .app-header-row{flex-wrap:wrap;}
     .header-right{width:100%;flex-direction:row;align-items:center;justify-content:space-between;}
     .chart-branch{width:96px;}
     .chart-value{width:46px;}
+    .chart-branch-wide{width:120px;white-space:normal;line-height:1.2;}
   }
 
+</style>
+
+<style>
+.kpi-grid-small{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:14px 0;}
+@media (max-width:560px){ .kpi-grid-small{grid-template-columns:1fr;} }
+.section-label-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.section-label-row .section-label{margin-bottom:0;}
+.period-toggle{display:flex;gap:6px;flex-wrap:wrap;}
+.period-btn{border:1px solid #d6d9dd;background:#fff;border-radius:8px;padding:7px 16px;font-size:19px;font-family:inherit;font-weight:700;cursor:pointer;color:var(--muted);transition:all .15s;}
+.period-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+#periodSubSelect{display:none;}
 </style>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -202,7 +215,13 @@
 
     <div class="toolbar">
       <div class="toolbar-label">ภาพรวมเดือน</div>
-      <select id="monthSelect" onchange="renderAll()"></select>
+      <select id="monthSelect" onchange="onMonthChange()"></select>
+      <div class="period-toggle">
+        <button class="period-btn" data-period="day" onclick="setPeriod('day')" type="button">รายวัน</button>
+        <button class="period-btn" data-period="week" onclick="setPeriod('week')" type="button">รายสัปดาห์</button>
+        <button class="period-btn active" data-period="month" onclick="setPeriod('month')" type="button">รายเดือน</button>
+      </div>
+      <select id="periodSubSelect" onchange="onPeriodSubSelectChange()"></select>
     </div>
 
     <div class="kpi-grid">
@@ -224,7 +243,7 @@
       <div class="kpi-card" style="--accent:var(--warn)">
         <div class="kpi-label">วันที่มีรายการไม่ผ่าน</div>
         <div class="kpi-value" id="kpiFailDays">—</div>
-        <div class="kpi-sub">จากทั้งหมดในเดือนนี้</div>
+        <div class="kpi-sub" id="kpiFailDaysSub">จากทั้งหมดในเดือนนี้</div>
       </div>
       <div class="kpi-card" style="--accent:var(--pass)">
         <div class="kpi-label">สาขาคะแนนเต็มทุกวัน</div>
@@ -233,13 +252,31 @@
       </div>
     </div>
 
+    <div class="kpi-grid-small">
+      <div class="kpi-card" style="--accent:var(--warn)">
+        <div class="kpi-label">คะแนนเฉลี่ยวันล่าสุด</div>
+        <div class="kpi-value" id="kpiLatestDay">—<span class="unit">/20</span></div>
+        <div class="kpi-sub" id="kpiLatestDaySub">&nbsp;</div>
+      </div>
+      <div class="kpi-card" style="--accent:var(--warn)">
+        <div class="kpi-label">คะแนนเฉลี่ยสัปดาห์ล่าสุด</div>
+        <div class="kpi-value" id="kpiLatestWeek">—<span class="unit">/20</span></div>
+        <div class="kpi-sub" id="kpiLatestWeekSub">&nbsp;</div>
+      </div>
+    </div>
+
     <div class="card">
-      <div class="section-label">คะแนนเฉลี่ยรายสาขา (เดือนนี้)</div>
+      <div class="section-label">คะแนนเฉลี่ยรายสาขา — <span id="scopeLabel1">เดือนนี้</span></div>
       <div id="chartArea"></div>
     </div>
 
     <div class="card">
-      <div class="section-label">สรุปประเด็นที่ต้องปรับปรุง (เดือนนี้)</div>
+      <div class="section-label">แนวโน้มคะแนนเฉลี่ย — <span id="scopeLabel2">เดือนนี้</span></div>
+      <div id="trendChartArea"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">สรุปประเด็นที่ต้องปรับปรุง — <span id="scopeLabel3">เดือนนี้</span></div>
       <div class="insight-grid">
         <div>
           <div class="insight-col-title">ปัญหาที่พบบ่อยที่สุด</div>
@@ -260,7 +297,7 @@
     </div>
 
     <div class="card">
-      <div class="section-label">สรุปภาพรวมประจำเดือน (สร้างอัตโนมัติจากข้อมูล)</div>
+      <div class="section-label">สรุปภาพรวม (สร้างอัตโนมัติจากข้อมูล) — <span id="scopeLabel4">เดือนนี้</span></div>
       <p class="auto-summary" id="autoSummary">—</p>
     </div>
   </div>
@@ -277,7 +314,11 @@ const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxTc2A-lzNMDWYEKo-3
 const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 
 let currentUser = null;
+let currentIdToken = null;
 let reportRows = [];
+let currentPeriod = 'month'; // 'day' | 'week' | 'month' — what KPIs/chart/insights/summary focus on
+let currentPeriodWeek = null; // selected week index when currentPeriod === 'week'
+let currentPeriodDay = null;  // selected day value when currentPeriod === 'day'
 
 function b64UrlDecode(str){
   str = str.replace(/-/g,'+').replace(/_/g,'/');
@@ -297,6 +338,7 @@ function handleCredentialResponse(response){
   // Remember the sign-in so a page refresh doesn't ask again (until the
   // Google token expires, ~1 hour — after that auto sign-in takes over).
   try{ localStorage.setItem(SESSION_KEY, response.credential); }catch(e){}
+  currentIdToken = response.credential;
   document.getElementById('deniedBox').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
@@ -326,6 +368,7 @@ function restoreSession(){
 function showGate(){
   currentUser = null;
   try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+  currentIdToken = null;
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('gate').style.display = 'flex';
 }
@@ -410,6 +453,7 @@ function loadSampleData(){
   document.getElementById('userEmail').textContent = '👀 โหมดดูตัวอย่าง (ข้อมูลสมมติ)';
   document.getElementById('userAvatar').style.display = 'none';
   populateMonths();
+  populatePeriodSubSelect();
   renderAll();
 }
 
@@ -446,9 +490,12 @@ async function loadReport(){
     showToast('ยังไม่ได้ตั้งค่า BACKEND_URL ในไฟล์นี้');
     return;
   }
+  if(!currentIdToken){
+    showToast('ไม่พบข้อมูลยืนยันตัวตน กรุณาเข้าสู่ระบบใหม่');
+    return;
+  }
   try{
-    // idToken for the hardened backend; email kept so the original v1 script still works.
-    const res = await fetch(`${BACKEND_URL}?action=report&email=${encodeURIComponent(currentUser.email)}&idToken=${encodeURIComponent(currentUser.idToken || '')}`);
+    const res = await fetch(`${BACKEND_URL}?action=report&idToken=${encodeURIComponent(currentIdToken)}`);
     const data = await res.json();
     if(!data.ok){
       if(/หมดอายุ|ไม่ถูกต้อง|กรุณาเข้าสู่ระบบ/.test(data.error || '')){
@@ -468,6 +515,7 @@ async function loadReport(){
     }
     reportRows = normalizeRows(data.rows || []);
     populateMonths();
+    populatePeriodSubSelect();
     renderAll();
   }catch(err){
     showToast('เชื่อมต่อ Dashboard ไม่สำเร็จ');
@@ -493,6 +541,108 @@ function populateMonths(){
   if(months.length) sel.value = months[months.length-1];
 }
 
+function onMonthChange(){
+  populatePeriodSubSelect();
+  renderAll();
+}
+
+// Fills #periodSubSelect with the days or weeks available in the currently
+// selected month, depending on currentPeriod, and picks the latest one by
+// default. Hidden entirely when currentPeriod === 'month'.
+function populatePeriodSubSelect(){
+  const sel = document.getElementById('periodSubSelect');
+  const rows = monthRows().filter(r=>!isNaN(Number(r.date)));
+
+  if(currentPeriod === 'month'){
+    sel.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+
+  if(currentPeriod === 'week'){
+    const maxDay = rows.length ? Math.max(...rows.map(r=>Number(r.date))) : 0;
+    const weeks = [...new Set(rows.map(r=>Math.ceil(Number(r.date)/7)))].sort((a,b)=>a-b);
+    sel.innerHTML = weeks.map(w=>{
+      const endDay = Math.min(w*7, maxDay);
+      return `<option value="${w}">สัปดาห์ที่ ${w} (วันที่ ${(w-1)*7+1}-${endDay})</option>`;
+    }).join('');
+    sel.style.display = weeks.length ? 'inline-block' : 'none';
+    currentPeriodWeek = weeks.length ? weeks[weeks.length-1] : null;
+    if(currentPeriodWeek !== null) sel.value = currentPeriodWeek;
+    return;
+  }
+
+  if(currentPeriod === 'day'){
+    const days = [...new Set(rows.map(r=>r.date))].sort((a,b)=>Number(a)-Number(b));
+    sel.innerHTML = days.map(d=>`<option value="${d}">วันที่ ${d}</option>`).join('');
+    sel.style.display = days.length ? 'inline-block' : 'none';
+    currentPeriodDay = days.length ? days[days.length-1] : null;
+    if(currentPeriodDay !== null) sel.value = currentPeriodDay;
+    return;
+  }
+}
+
+function onPeriodSubSelectChange(){
+  const sel = document.getElementById('periodSubSelect');
+  if(currentPeriod === 'week') currentPeriodWeek = Number(sel.value);
+  if(currentPeriod === 'day') currentPeriodDay = sel.value;
+  renderAll();
+}
+
+function setPeriod(period){
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+  populatePeriodSubSelect();
+  renderAll();
+}
+
+// The slice of this month's rows that the KPI cards / branch chart / trend
+// chart / insights / auto-summary should all focus on right now.
+function periodRows(){
+  const rows = monthRows();
+  if(currentPeriod === 'week'){
+    if(currentPeriodWeek === null) return rows;
+    return rows.filter(r=>{
+      const d = Number(r.date);
+      return !isNaN(d) && Math.ceil(d/7) === currentPeriodWeek;
+    });
+  }
+  if(currentPeriod === 'day'){
+    if(currentPeriodDay === null) return rows;
+    return rows.filter(r=>r.date === currentPeriodDay);
+  }
+  return rows;
+}
+
+// Short label describing the currently focused period, used in card/section
+// headers and woven into the auto-summary sentence, e.g. "วันที่ 20",
+// "สัปดาห์ที่ 3 (วันที่ 15-21)", or "เดือนนี้".
+function currentScopeLabel(){
+  if(currentPeriod === 'day'){
+    return currentPeriodDay ? `วันที่ ${currentPeriodDay}` : 'วันนี้';
+  }
+  if(currentPeriod === 'week'){
+    if(currentPeriodWeek === null) return 'สัปดาห์นี้';
+    const rows = monthRows().filter(r=>!isNaN(Number(r.date)));
+    const maxDay = rows.length ? Math.max(...rows.map(r=>Number(r.date))) : currentPeriodWeek*7;
+    const endDay = Math.min(currentPeriodWeek*7, maxDay);
+    return `สัปดาห์ที่ ${currentPeriodWeek} (วันที่ ${(currentPeriodWeek-1)*7+1}-${endDay})`;
+  }
+  return 'เดือนนี้';
+}
+
+function updateScopeLabels(){
+  const label = currentScopeLabel();
+  ['scopeLabel1','scopeLabel2','scopeLabel3','scopeLabel4'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.textContent = label;
+  });
+  document.getElementById('kpiAvgSub').textContent = label;
+  document.getElementById('kpiFailDaysSub').textContent = `จากทั้งหมดใน${label}`;
+}
+
 function allBranchNames(){
   const set = new Set();
   reportRows.forEach(r => Object.keys(r.branches).forEach(b=>set.add(b)));
@@ -500,11 +650,110 @@ function allBranchNames(){
 }
 
 function renderAll(){
+  updateScopeLabels();
   renderKpis();
   renderChart();
+  renderLatestOverview();
+  renderTrendChart();
   renderInsights();
   renderTable();
   renderAutoSummary();
+}
+
+// Groups this month's day-rows into weeks (days 1-7, 8-14, ...) since the
+// sheet only stores a day-of-month number, not a real calendar date.
+function weekGroups(rows){
+  const groups = {}; // weekIdx -> rows[]
+  rows.forEach(r=>{
+    const dayNum = Number(r.date);
+    if(isNaN(dayNum)) return;
+    const weekIdx = Math.ceil(dayNum / 7);
+    if(!groups[weekIdx]) groups[weekIdx] = [];
+    groups[weekIdx].push(r);
+  });
+  return groups;
+}
+
+function dayAverage(row){
+  const scores = Object.values(row.branches).map(c=>Number(c.score)).filter(v=>!isNaN(v));
+  if(!scores.length) return null;
+  return scores.reduce((a,b)=>a+b,0) / scores.length;
+}
+
+// Small cards: average of the most recent day with data, and the most
+// recent week-group with data, within the currently selected month.
+function renderLatestOverview(){
+  const rows = monthRows().filter(r=>!isNaN(Number(r.date)));
+  const dayEl = document.getElementById('kpiLatestDay');
+  const daySubEl = document.getElementById('kpiLatestDaySub');
+  const weekEl = document.getElementById('kpiLatestWeek');
+  const weekSubEl = document.getElementById('kpiLatestWeekSub');
+
+  const sortedRows = [...rows].sort((a,b)=>Number(a.date)-Number(b.date));
+  let latestDayRow = null;
+  for(let i = sortedRows.length - 1; i >= 0; i--){
+    if(dayAverage(sortedRows[i]) !== null){ latestDayRow = sortedRows[i]; break; }
+  }
+  if(latestDayRow){
+    dayEl.innerHTML = dayAverage(latestDayRow).toFixed(2) + '<span class="unit">/20</span>';
+    daySubEl.textContent = `วันที่ ${latestDayRow.date}`;
+  } else {
+    dayEl.innerHTML = '—';
+    daySubEl.textContent = ' ';
+  }
+
+  const groups = weekGroups(rows);
+  const weekIdxs = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+  let latestWeekIdx = null, latestWeekAvg = null;
+  for(let i = weekIdxs.length - 1; i >= 0; i--){
+    const wIdx = weekIdxs[i];
+    const avgs = groups[wIdx].map(dayAverage).filter(v=>v !== null);
+    if(avgs.length){ latestWeekIdx = wIdx; latestWeekAvg = avgs.reduce((a,b)=>a+b,0)/avgs.length; break; }
+  }
+  if(latestWeekIdx !== null){
+    weekEl.innerHTML = latestWeekAvg.toFixed(2) + '<span class="unit">/20</span>';
+    const lastDay = Math.max(...groups[latestWeekIdx].map(r=>Number(r.date)));
+    weekSubEl.textContent = `สัปดาห์ที่ ${latestWeekIdx} (วันที่ ${(latestWeekIdx-1)*7+1}-${Math.min(latestWeekIdx*7, lastDay)})`;
+  } else {
+    weekEl.innerHTML = '—';
+    weekSubEl.textContent = ' ';
+  }
+}
+
+function trendBarRow(label, avg){
+  const pct = avg !== null ? Math.max(4, (avg/20)*100) : 0;
+  const color = avg === null ? '#d6d9dd' : (avg >= 19.5 ? 'var(--pass)' : avg >= 18 ? 'var(--warn)' : 'var(--fail)');
+  return `<div class="chart-row">
+    <div class="chart-branch chart-branch-wide">${label}</div>
+    <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="chart-value">${avg !== null ? avg.toFixed(1) : '—'}</div>
+  </div>`;
+}
+
+// Breaks the trend chart down one level finer than the current period: the
+// whole month shows a bar per week, a single week shows a bar per day, and
+// a single day just shows that one day (nothing finer to break it into).
+function renderTrendChart(){
+  const area = document.getElementById('trendChartArea');
+
+  if(currentPeriod === 'month'){
+    const rows = monthRows().filter(r=>!isNaN(Number(r.date)));
+    if(rows.length === 0){ area.innerHTML = '<div style="color:var(--muted);font-size:19px;">ไม่มีข้อมูล</div>'; return; }
+    const groups = weekGroups(rows);
+    const weekIdxs = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+    area.innerHTML = weekIdxs.map(wIdx=>{
+      const avgs = groups[wIdx].map(dayAverage).filter(v=>v !== null);
+      const avg = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : null;
+      const label = `สัปดาห์ที่ ${wIdx} (วันที่ ${(wIdx-1)*7+1}-${wIdx*7})`;
+      return trendBarRow(label, avg);
+    }).join('');
+    return;
+  }
+
+  // 'week' or 'day' — one bar per day within whatever periodRows() returned.
+  const rows = periodRows().filter(r=>!isNaN(Number(r.date))).sort((a,b)=>Number(a.date)-Number(b.date));
+  if(rows.length === 0){ area.innerHTML = '<div style="color:var(--muted);font-size:19px;">ไม่มีข้อมูล</div>'; return; }
+  area.innerHTML = rows.map(r=>trendBarRow('วันที่ ' + r.date, dayAverage(r))).join('');
 }
 
 // Counts how often each reason text appears this month, and how many
@@ -513,7 +762,7 @@ function renderAll(){
 let lastIssueBranches = {}; // reason -> { branch: count }, rebuilt each render
 
 function renderInsights(){
-  const rows = monthRows();
+  const rows = periodRows();
   const issueCounts = {};
   const issueBranches = {};
   const branchFailCounts = {};
@@ -535,7 +784,7 @@ function renderInsights(){
   const issuesArea = document.getElementById('issuesArea');
   const topIssues = Object.entries(issueCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
   if(topIssues.length === 0){
-    issuesArea.innerHTML = '<div class="insight-empty">ยังไม่มีประเด็นที่ต้องปรับปรุงในเดือนนี้ 🎉</div>';
+    issuesArea.innerHTML = `<div class="insight-empty">ยังไม่มีประเด็นที่ต้องปรับปรุงใน${currentScopeLabel()} 🎉</div>`;
   } else {
     issuesArea.innerHTML = topIssues.map(([reason, count], i)=>{
       const safeReason = reason.replace(/'/g, "\\'");
@@ -552,7 +801,7 @@ function renderInsights(){
   const rankArea = document.getElementById('branchRankArea');
   const topBranches = Object.entries(branchFailCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
   if(topBranches.length === 0){
-    rankArea.innerHTML = '<div class="insight-empty">ทุกสาขาผ่านครบในเดือนนี้ 🎉</div>';
+    rankArea.innerHTML = `<div class="insight-empty">ทุกสาขาผ่านครบใน${currentScopeLabel()} 🎉</div>`;
   } else {
     rankArea.innerHTML = topBranches.map(([branch, count], i)=>
       `<div class="rank-item">
@@ -589,7 +838,7 @@ function monthRows(){
 }
 
 function branchStats(){
-  const rows = monthRows();
+  const rows = periodRows();
   const branches = allBranchNames();
   const stats = {};
   branches.forEach(b=>{
@@ -609,7 +858,7 @@ function branchStats(){
 }
 
 function renderKpis(){
-  const rows = monthRows();
+  const rows = periodRows();
   const stats = branchStats();
   const branches = Object.keys(stats);
 
@@ -687,7 +936,7 @@ function renderTable(){
 // screen — no AI call, just the KPI + top issue + top branch figures
 // stitched into a sentence so there is still a quick-read paragraph.
 function renderAutoSummary(){
-  const rows = monthRows();
+  const rows = periodRows();
   const stats = branchStats();
   const branches = Object.keys(stats);
   const allAvgs = branches.map(b=>stats[b].avg).filter(v=>v !== null);
@@ -695,7 +944,7 @@ function renderAutoSummary(){
 
   const el = document.getElementById('autoSummary');
   if(rows.length === 0 || overallAvg === null){
-    el.textContent = 'ยังไม่มีข้อมูลสำหรับเดือนนี้';
+    el.textContent = `ยังไม่มีข้อมูลสำหรับ${currentScopeLabel()}`;
     return;
   }
 
@@ -716,11 +965,11 @@ function renderAutoSummary(){
     if(hasFail) failDays++;
   });
 
-  let sentence = `ภาพรวมเดือนนี้คะแนนเฉลี่ย ${overallAvg.toFixed(2)}/20 จาก ${branches.length} สาขา `;
+  let sentence = `ภาพรวม${currentScopeLabel()} คะแนนเฉลี่ย ${overallAvg.toFixed(2)}/20 จาก ${branches.length} สาขา `;
   sentence += bestBranch ? `สาขาที่ทำได้ดีที่สุดคือ ${bestBranch} (เฉลี่ย ${bestVal.toFixed(2)}/20) ` : '';
   sentence += lowestBranch ? `ส่วนสาขาที่ควรดูแลเพิ่มคือ ${lowestBranch} (เฉลี่ย ${lowestVal.toFixed(2)}/20) ` : '';
-  sentence += `มีวันที่พบรายการไม่ผ่าน ${failDays} วันจากทั้งหมดในเดือนนี้ `;
-  sentence += topIssueEntry ? `ปัญหาที่พบบ่อยที่สุดคือ "${topIssueEntry[0]}" (${topIssueEntry[1]} ครั้ง)` : 'ไม่มีประเด็นที่ต้องปรับปรุงซ้ำๆ ในเดือนนี้';
+  sentence += `มีวันที่พบรายการไม่ผ่าน ${failDays} วันจากทั้งหมดใน${currentScopeLabel()} `;
+  sentence += topIssueEntry ? `ปัญหาที่พบบ่อยที่สุดคือ "${topIssueEntry[0]}" (${topIssueEntry[1]} ครั้ง)` : `ไม่มีประเด็นที่ต้องปรับปรุงซ้ำๆ ใน${currentScopeLabel()}`;
   el.textContent = sentence.trim() + '.';
 }
 
