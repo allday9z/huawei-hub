@@ -8,7 +8,10 @@ Static pages (files supplied by Antt, 2026-10-07):
 | `/checklist` | `site/checklist.html` (huawei-morning-checklist.html) | Morning Store Checklist (daily) |
 | `/report-dashboard` | `site/report-dashboard.html` | Report Dashboard (Google sign-in, allow-list) |
 
-Served by nginx (see `Dockerfile`, `nginx.conf`). Back-end is Google Apps Script
+Served by a small Bun server (`server.ts`, see `Dockerfile`) — same clean URLs as
+before, plus `POST /api/rewrite` (AI Rewrite button on the checklist; calls the
+OpenAI-compatible gateway in env `AI_GATEWAY_ENDPOINT` / `AI_GATEWAY_KEY` /
+`AI_GATEWAY_MODEL`, rate-limited per IP + globally, same-origin only). Back-end is Google Apps Script
 (ChecklistWebhook.gs / DashboardBackend.gs) deployed under the sheet owner's
 Google account — paste its `/exec` URLs into `WEBHOOK_URL` (checklist) and
 `BACKEND_URL` + `GOOGLE_CLIENT_ID` (dashboard), then redeploy.

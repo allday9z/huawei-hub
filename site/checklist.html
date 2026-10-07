@@ -227,6 +227,13 @@
     background:#fff;border:1px solid var(--line);color:var(--ink);font-size:14.5px;font-weight:800;text-decoration:none;
     box-shadow:0 1px 2px rgba(16,20,24,.05);}
   .back-link:hover{border-color:var(--red);color:var(--red-dark);}
+  .ai-row{display:flex;justify-content:flex-end;gap:8px;margin:6px 0 10px 0;flex-wrap:wrap;}
+  .ai-btn,.ai-undo{font-family:inherit;font-size:13.5px;font-weight:800;border-radius:999px;padding:5px 12px;cursor:pointer;line-height:1.3;}
+  .ai-btn{background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#5b21b6;border:1px solid #c4b5fd;}
+  .ai-btn:hover{border-color:#8b5cf6;}
+  .ai-btn:disabled{opacity:.7;cursor:default;}
+  .ai-undo{background:#fff;color:var(--muted);border:1px solid var(--line);}
+  .ai-undo[hidden]{display:none;}
 </style>
 
 <div class="wrap">
@@ -456,7 +463,7 @@ CATEGORIES.forEach((cat, ci)=>{
       </div>
       <div class="extra" id="${id}-extra">
         <span class="extra-label">1. เพราะอะไรถึงไม่ผ่าน (สาเหตุ)</span>
-        <input type="text" id="${id}-reason" placeholder="ระบุสาเหตุที่ไม่ผ่าน" oninput="calc()" style="margin-bottom:8px;">
+        <input type="text" id="${id}-reason" placeholder="ระบุสาเหตุที่ไม่ผ่าน" oninput="calc()">
         <span class="extra-label">2. ปรับปรุงได้อย่างไร (วิธีแก้ไข)</span>
         <input type="text" id="${id}-fix" placeholder="ระบุวิธีแก้ไข / แผนปรับปรุง" oninput="calc()">
       </div>
@@ -770,6 +777,52 @@ function loadDraft(){
 branchSel.addEventListener('change', loadDraft);
 document.getElementById('date').addEventListener('change', loadDraft);
 document.getElementById('inspector').addEventListener('input', saveDraft);
+
+// ---- AI Rewrite: tidy up what staff typed (POST /api/rewrite on this server) ----
+function addRewrite(el, field, itemText){
+  const row = document.createElement('div');
+  row.className = 'ai-row';
+  row.innerHTML = '<button type="button" class="ai-btn">✨ AI ช่วยเรียบเรียง</button>'
+    + '<button type="button" class="ai-undo" hidden>↩ ใช้ข้อความเดิม</button>';
+  el.insertAdjacentElement('afterend', row);
+  const btn = row.querySelector('.ai-btn'), undo = row.querySelector('.ai-undo');
+  let original = null;
+  btn.addEventListener('click', async ()=>{
+    const text = el.value.trim();
+    if(!text){ showToast('พิมพ์ข้อความก่อน แล้วค่อยกดให้ AI ช่วยเรียบเรียง'); el.focus(); return; }
+    btn.disabled = true; btn.textContent = '⏳ กำลังเรียบเรียง...';
+    try{
+      const res = await fetch('/api/rewrite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, field, item: itemText })
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!data.ok) throw new Error(data.error || 'AI ไม่ตอบสนอง');
+      original = el.value;
+      el.value = data.text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      undo.hidden = false;
+      showToast('AI เรียบเรียงให้แล้ว ✨ ตรวจดูอีกครั้งก่อนส่งนะ');
+    }catch(err){
+      showToast(err.message || 'AI ไม่ตอบสนอง กรุณาลองใหม่');
+    }finally{
+      btn.disabled = false; btn.textContent = '✨ AI ช่วยเรียบเรียง';
+    }
+  });
+  undo.addEventListener('click', ()=>{
+    if(original === null) return;
+    el.value = original; original = null; undo.hidden = true;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  el.addEventListener('input', e=>{ if(e.isTrusted){ original = null; undo.hidden = true; } });
+}
+document.querySelectorAll('input[id$="-reason"], input[id$="-fix"], input[id$="-passdetail"]').forEach(el=>{
+  const field = el.id.slice(el.id.lastIndexOf('-') + 1);
+  const itemEl = el.closest('.item')?.querySelector('.item-text');
+  const itemText = itemEl ? itemEl.textContent.replace(/^\d+/, '').trim() : '';
+  addRewrite(el, field, itemText);
+});
+addRewrite(document.getElementById('general-note'), 'note', '');
 
 loadDraft();
 calc();
