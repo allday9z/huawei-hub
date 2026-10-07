@@ -155,11 +155,16 @@
   details.table-details > summary::-webkit-details-marker{display:none;}
   details.table-details > summary::before{content:"▸";color:var(--muted);transition:transform .15s;}
   details.table-details[open] > summary::before{transform:rotate(90deg);}
+  .back-link{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px 0;padding:7px 14px;border-radius:999px;
+    background:#fff;border:1px solid var(--line);color:var(--ink);font-size:14.5px;font-weight:800;text-decoration:none;
+    box-shadow:0 1px 2px rgba(16,20,24,.05);}
+  .back-link:hover{border-color:var(--red);color:var(--red-dark);}
 </style>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <div class="wrap">
+  <a class="back-link" href="/">&larr; กลับหน้าหลัก</a>
   <div id="gate">
     <h2>Report Dashboard</h2>
     <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google ที่ได้รับสิทธิ์ เพื่อดูสรุปผลคะแนนทุกสาขา</p>
