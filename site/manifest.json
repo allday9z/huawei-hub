@@ -1,0 +1,16 @@
+{
+  "name": "HUAWEI Hub by UFicon",
+  "short_name": "HUAWEI Hub",
+  "description": "Operation Portal — Fail Case Service, Morning Store Checklist และ Report Dashboard",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef0f3",
+  "theme_color": "#C7000B",
+  "lang": "th",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -3,6 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#C7000B">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HUAWEI Hub">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});</script>
 <title>HUAWEI Hub by UFicon : Operation Portal</title>
 </head>
 <body>
@@ -80,6 +89,29 @@
   }
 
   .footnote{font-size:13.5px;color:var(--muted);text-align:center;margin-top:24px;font-weight:600;line-height:1.6;}
+  /* Install as app (PWA) */
+  .install-card{display:flex;align-items:center;gap:14px;background:#fff;border:1.5px dashed rgba(199,0,11,.45);
+    border-radius:var(--radius);padding:14px 18px;margin:0 0 6px;}
+  .install-card[hidden]{display:none;}
+  .install-text{flex:1;min-width:0;}
+  .install-title{font-size:18px;font-weight:800;color:var(--ink);}
+  .install-sub{font-size:14.5px;color:var(--muted);font-weight:600;line-height:1.4;}
+  .install-btn{flex:none;font-family:inherit;font-size:16px;font-weight:800;color:#fff;border:none;cursor:pointer;
+    background:linear-gradient(135deg,var(--red-dark),var(--red));border-radius:12px;padding:10px 16px;
+    box-shadow:0 4px 10px rgba(199,0,11,.25);}
+  @media (max-width:520px){.install-card{flex-wrap:wrap;}.install-btn{width:100%;}}
+  .modal-bg{position:fixed;inset:0;background:rgba(15,18,22,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:12px;}
+  .modal-bg[hidden]{display:none;}
+  .modal{background:#fff;border-radius:18px;max-width:520px;width:100%;padding:20px 20px 16px;max-height:85vh;overflow:auto;}
+  @media (min-width:600px){.modal-bg{align-items:center;}}
+  .modal h3{margin:0 0 4px;font-size:21px;font-weight:800;}
+  .modal .lead{margin:0 0 12px;color:var(--muted);font-size:15px;font-weight:600;}
+  .how{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+  .how.mine{border-color:var(--red);background:#fff7f7;}
+  .how b.dev{display:block;font-size:17px;margin-bottom:4px;}
+  .how ol{margin:0;padding-left:20px;font-size:15.5px;font-weight:600;line-height:1.55;}
+  .how .tag{font-size:12.5px;font-weight:800;color:var(--red);margin-left:6px;}
+  .modal-close{width:100%;font-family:inherit;font-size:16px;font-weight:800;border:1px solid var(--line);background:#f6f7f8;border-radius:12px;padding:10px;cursor:pointer;margin-top:4px;}
 </style>
 
 <div class="wrap">
@@ -93,11 +125,86 @@
     </div>
   </div>
 
+  <div class="install-card" id="installCard" hidden>
+    <div class="form-icon">📲</div>
+    <div class="install-text">
+      <div class="install-title">ติดตั้ง HUAWEI Hub เป็นแอป</div>
+      <div class="install-sub">เปิดได้จากไอคอนบนมือถือ / MacBook ทันที ไม่ต้องหาลิงก์</div>
+    </div>
+    <button type="button" class="install-btn" id="installBtn">⬇ ดาวน์โหลด / ติดตั้ง</button>
+  </div>
+
   <div class="section-label">แบบฟอร์มประจำวัน</div>
   <div class="card-list" id="formList"></div>
 
-  <div class="footnote">มีฟอร์มใหม่เพิ่มเข้ามาเรื่อยๆ — บุ๊กมาร์กหน้านี้ไว้เพื่อเข้าถึงฟอร์มทั้งหมดได้จากที่เดียว</div>
+  <div class="footnote">มีฟอร์มใหม่เพิ่มเข้ามาเรื่อยๆ — ติดตั้งเป็นแอป หรือบุ๊กมาร์กหน้านี้ไว้ เพื่อเข้าถึงฟอร์มทั้งหมดได้จากที่เดียว</div>
 </div>
+
+<div class="modal-bg" id="installModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <h3 id="installTitle">ติดตั้ง HUAWEI Hub</h3>
+    <p class="lead">ทำตามขั้นตอนของเครื่องที่ใช้อยู่ (ทำครั้งเดียว)</p>
+    <div class="how" data-dev="ios"><b class="dev">📱 iPhone / iPad (Safari)</b><ol>
+      <li>กดปุ่มแชร์ <b>⬆︎</b> ด้านล่าง (หรือมุมขวาบนบน iPad)</li>
+      <li>เลื่อนลงแล้วเลือก <b>"เพิ่มไปยังหน้าจอโฮม"</b> (Add to Home Screen)</li>
+      <li>กด <b>"เพิ่ม"</b> — ไอคอน HUAWEI Hub จะอยู่บนหน้าจอ</li></ol></div>
+    <div class="how" data-dev="android"><b class="dev">🤖 Android (Chrome)</b><ol>
+      <li>กดเมนู <b>⋮</b> มุมขวาบน</li>
+      <li>เลือก <b>"ติดตั้งแอป"</b> หรือ <b>"เพิ่มลงในหน้าจอหลัก"</b></li></ol></div>
+    <div class="how" data-dev="mac-safari"><b class="dev">💻 MacBook (Safari)</b><ol>
+      <li>เมนูด้านบน <b>ไฟล์ (File)</b> → <b>"เพิ่มไปยัง Dock" (Add to Dock)</b></li>
+      <li>กด <b>"เพิ่ม"</b> — เปิดได้จาก Dock / Launchpad</li></ol></div>
+    <div class="how" data-dev="desktop-chrome"><b class="dev">💻 MacBook / Windows (Chrome หรือ Edge)</b><ol>
+      <li>กดไอคอน <b>ติดตั้ง ⊕</b> ท้ายช่องที่อยู่เว็บ หรือเมนู <b>⋮</b> → <b>"ติดตั้ง HUAWEI Hub"</b></li>
+      <li>กด <b>"ติดตั้ง"</b> — เปิดได้จาก Launchpad / Start menu</li></ol></div>
+    <button type="button" class="modal-close" id="installClose">ปิด</button>
+  </div>
+</div>
+
+<script>
+// "Install as app" — Chrome/Edge/Android show the native install prompt;
+// Safari (iPhone/iPad/Mac) has no prompt API, so show step-by-step help.
+(function(){
+  var card = document.getElementById('installCard'), btn = document.getElementById('installBtn');
+  var modal = document.getElementById('installModal'), deferred = null;
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (standalone) return; // already opened as the installed app
+  card.hidden = false;
+
+  var ua = navigator.userAgent;
+  var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var isAndroid = /Android/.test(ua);
+  var isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|Edg|OPR|Android/.test(ua);
+  var mine = isIOS ? 'ios' : isAndroid ? 'android' : isSafari ? 'mac-safari' : 'desktop-chrome';
+
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; });
+  window.addEventListener('appinstalled', function(){ card.hidden = true; deferred = null; });
+
+  function showHelp(){
+    var list = modal.querySelector('.modal');
+    var boxes = Array.prototype.slice.call(modal.querySelectorAll('.how'));
+    boxes.forEach(function(b){
+      var isMine = b.getAttribute('data-dev') === mine;
+      b.classList.toggle('mine', isMine);
+      var t = b.querySelector('.tag'); if (t) t.remove();
+      if (isMine) b.querySelector('.dev').insertAdjacentHTML('beforeend', '<span class="tag">เครื่องนี้</span>');
+    });
+    // put this device's steps first
+    var first = modal.querySelector('.how[data-dev="' + mine + '"]');
+    if (first) list.insertBefore(first, list.querySelector('.how'));
+    modal.hidden = false;
+  }
+  btn.addEventListener('click', function(){
+    if (deferred) {
+      deferred.prompt();
+      deferred.userChoice.then(function(r){ if (r.outcome === 'accepted') card.hidden = true; });
+      deferred = null;
+    } else showHelp();
+  });
+  document.getElementById('installClose').addEventListener('click', function(){ modal.hidden = true; });
+  modal.addEventListener('click', function(e){ if (e.target === modal) modal.hidden = true; });
+})();
+</script>
 
 <script>
 // Add a new entry here whenever a new form/page is ready — it will appear
@@ -116,7 +223,7 @@ const FORMS = [
     icon: "📋"
   },
   {
-    title: "Report Dashboard",
+    title: "Morning Store Checklist Report Dashboard",
     desc: "ดูสรุปผลคะแนนทุกสาขา (สำหรับผู้ที่ได้รับสิทธิ์เท่านั้น)",
     url: "/report-dashboard",
     icon: "📊"

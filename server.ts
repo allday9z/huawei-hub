@@ -117,7 +117,8 @@ async function serveStatic(pathname: string): Promise<Response> {
     if (st?.isFile()) {
       const f = Bun.file(candidate)
       const headers: Record<string, string> = { "X-Content-Type-Options": "nosniff" }
-      if (candidate.endsWith(".html")) headers["Cache-Control"] = "no-cache"
+      if (/\.(html|js|json)$/.test(candidate)) headers["Cache-Control"] = "no-cache"
+      if (candidate.endsWith("manifest.json")) headers["Content-Type"] = "application/manifest+json"
       return new Response(f, { headers })
     }
   }
