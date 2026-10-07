@@ -266,14 +266,6 @@ const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxTc2A-lzNMDWYEKo-3
 // > Credentials > Create Credentials > OAuth client ID > Web application).
 const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 
-// Keep this in sync with ALLOWED_EMAILS in DashboardBackend.gs — this copy is
-// only used to show a friendlier "access denied" message right away; the
-// backend is what actually enforces access.
-const ALLOWED_EMAILS = [
-  "marketing.uficon@gmail.com",
-  "benyapakamonphan@gmail.com"
-];
-
 let currentUser = null;
 let reportRows = [];
 
@@ -287,11 +279,8 @@ function b64UrlDecode(str){
 function handleCredentialResponse(response){
   const payload = JSON.parse(b64UrlDecode(response.credential.split('.')[1]));
   const email = (payload.email || '').toLowerCase().trim();
-  const allowed = ALLOWED_EMAILS.map(x=>x.toLowerCase().trim()).indexOf(email) !== -1;
-  if(!allowed){
-    document.getElementById('deniedBox').style.display = 'block';
-    return;
-  }
+  // Who may view is decided only by ALLOWED_EMAILS in DashboardBackend.gs —
+  // loadReport() shows the "no access" box when the backend refuses.
   // Keep the Google ID token: the backend verifies it with Google instead of
   // trusting the email (v2 DashboardBackend.gs).
   currentUser = { email, name: payload.name, picture: payload.picture, idToken: response.credential };
@@ -405,7 +394,20 @@ async function loadReport(){
     // idToken for the hardened backend; email kept so the original v1 script still works.
     const res = await fetch(`${BACKEND_URL}?action=report&email=${encodeURIComponent(currentUser.email)}&idToken=${encodeURIComponent(currentUser.idToken || '')}`);
     const data = await res.json();
-    if(!data.ok){ showToast(data.error || 'โหลดข้อมูลไม่สำเร็จ'); return; }
+    if(!data.ok){
+      if(/สิทธิ์|เข้าสู่ระบบ/.test(data.error || '')){
+        const email = currentUser.email;
+        signOut();
+        const box = document.getElementById('deniedBox');
+        box.textContent = /สิทธิ์/.test(data.error)
+          ? `บัญชี ${email} ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้ — ติดต่อผู้ดูแลเพื่อขอสิทธิ์`
+          : data.error;
+        box.style.display = 'block';
+        return;
+      }
+      showToast(data.error || 'โหลดข้อมูลไม่สำเร็จ');
+      return;
+    }
     reportRows = data.rows || [];
     populateMonths();
     renderAll();
