@@ -747,7 +747,7 @@ function trendBarRow(label, avg){
   return `<div class="chart-row">
     <div class="chart-branch chart-branch-wide">${label}</div>
     <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color};"></div></div>
-    <div class="chart-value">${avg !== null ? avg.toFixed(1) : '—'}</div>
+    <div class="chart-value">${avg !== null ? avg.toFixed(2) : '—'}</div>
   </div>`;
 }
 
@@ -923,9 +923,17 @@ function renderChart(){
     return `<div class="chart-row">
       <div class="chart-branch">${b}</div>
       <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color};"></div></div>
-      <div class="chart-value">${avg !== null ? avg.toFixed(1) : '—'}</div>
+      <div class="chart-value">${avg !== null ? avg.toFixed(2) : '—'}</div>
     </div>`;
   }).join('');
+}
+
+// Sheet averages arrive unrounded (e.g. 19.714285714285715) — show whole
+// numbers as-is and everything else with 2 decimals.
+function fmtScore(v){
+  const n = Number(v);
+  if(v === '' || isNaN(n)) return v;
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 function renderTable(){
@@ -942,7 +950,7 @@ function renderTable(){
     branches.forEach(b=>{
       const cell = r.branches[b];
       if(!cell){ html += '<td><span class="empty-cell">—</span></td>'; return; }
-      const score = (cell.score === '' || cell.score === null || cell.score === undefined) ? '—' : cell.score;
+      const score = (cell.score === '' || cell.score === null || cell.score === undefined) ? '—' : fmtScore(cell.score);
       const cls = score === '—' ? '' : (Number(score) < 20 ? 'fail' : 'pass');
       const reason = cell.reason ? `<div class="reason-note">${cell.reason}</div>` : '';
       html += `<td><span class="score-chip ${cls}">${score}</span>${reason}</td>`;
