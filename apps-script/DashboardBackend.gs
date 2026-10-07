@@ -29,7 +29,7 @@
 const SHEET_NAME = "ชีต1";
 
 // Same value as GOOGLE_CLIENT_ID in report-dashboard.html (…apps.googleusercontent.com)
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 
 // Everyone allowed to view the Report Dashboard (Google account emails).
 const ALLOWED_EMAILS = [
