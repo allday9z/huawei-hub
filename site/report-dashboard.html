@@ -456,7 +456,7 @@ async function loadReport(){
       showToast(data.error || 'โหลดข้อมูลไม่สำเร็จ');
       return;
     }
-    reportRows = data.rows || [];
+    reportRows = normalizeRows(data.rows || []);
     populateMonths();
     renderAll();
   }catch(err){
@@ -464,8 +464,20 @@ async function loadReport(){
   }
 }
 
+// The sheet's month column is usually merged (only the first row of each
+// month has text), so the other rows arrive with an empty month and showed
+// up as a blank choice in the month dropdown. Carry the month down.
+function normalizeRows(rows){
+  let current = '';
+  return rows.map(r=>{
+    const month = String(r.month || '').trim();
+    if(month) current = month;
+    return Object.assign({}, r, { month: month || current || 'ไม่ระบุเดือน' });
+  });
+}
+
 function populateMonths(){
-  const months = [...new Set(reportRows.map(r=>r.month))];
+  const months = [...new Set(reportRows.map(r=>r.month))].filter(Boolean);
   const sel = document.getElementById('monthSelect');
   sel.innerHTML = months.map(m=>`<option value="${m}">${m}</option>`).join('');
   if(months.length) sel.value = months[months.length-1];
@@ -650,8 +662,8 @@ function renderTable(){
     branches.forEach(b=>{
       const cell = r.branches[b];
       if(!cell){ html += '<td><span class="empty-cell">—</span></td>'; return; }
-      const score = cell.score;
-      const cls = (typeof score === 'number' && score < 20) ? 'fail' : 'pass';
+      const score = (cell.score === '' || cell.score === null || cell.score === undefined) ? '—' : cell.score;
+      const cls = score === '—' ? '' : (Number(score) < 20 ? 'fail' : 'pass');
       const reason = cell.reason ? `<div class="reason-note">${cell.reason}</div>` : '';
       html += `<td><span class="score-chip ${cls}">${score}</span>${reason}</td>`;
     });
