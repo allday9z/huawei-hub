@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});</script>
 <title>Morning Store Checklist — HUAWEI Hub by UFicon</title>
+<script>/* Lucide icons (ISC, lucide.dev) — inline SVG, no network needed */
+function ico(n,s,c){var P={"store": "<path d=\"m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7\"/><path d=\"M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8\"/><path d=\"M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4\"/><path d=\"M2 7h20\"/><path d=\"M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7\"/>", "package": "<path d=\"M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z\"/><path d=\"M12 22V12\"/><path d=\"m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7\"/><path d=\"m7.5 4.27 9 5.15\"/>", "tag": "<path d=\"M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z\"/><circle cx=\"7.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/>", "user-check": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><polyline points=\"16 11 18 13 22 9\"/>", "clipboard-check": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"m9 14 2 2 4-4\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "sparkles": "<path d=\"M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z\"/><path d=\"M20 3v4\"/><path d=\"M22 5h-4\"/><path d=\"M4 17v2\"/><path d=\"M5 18H3\"/>", "undo-2": "<path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\"/>", "loader": "<path d=\"M21 12a9 9 0 1 1-6.219-8.56\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/>"};s=s||'1em';return '<svg class="lu'+(c?' '+c:'')+'" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||'')+'</svg>';}</script>
+<style>.lu{display:inline-block;vertical-align:-0.14em;flex:none}.lu.spin{animation:luspin 1s linear infinite}@keyframes luspin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
 <meta charset="UTF-8">
@@ -137,8 +140,10 @@
     width:20px;height:20px;border-radius:50%;border:2px solid #c7cbd1;background:#fff;
     transition:all .12s;
   }
-  .opt.pass label::before{content:"✓";font-size:13px;line-height:1;color:#c7cbd1;}
-  .opt.fail label::before{content:"✕";font-size:12px;line-height:1;color:#c7cbd1;}
+  .opt.pass label::before{background:#fff url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23c7cbd1%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M20 6 9 17l-5-5%22/%3E%3C/svg%3E") center/12px no-repeat;}
+  .opt.fail label::before{background:#fff url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23c7cbd1%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M18 6 6 18%22/%3E%3Cpath d=%22m6 6 12 12%22/%3E%3C/svg%3E") center/11px no-repeat;}
+  .opt.pass input:checked + label::before{background:rgba(255,255,255,.25) url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M20 6 9 17l-5-5%22/%3E%3C/svg%3E") center/12px no-repeat;}
+  .opt.fail input:checked + label::before{background:rgba(255,255,255,.25) url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M18 6 6 18%22/%3E%3Cpath d=%22m6 6 12 12%22/%3E%3C/svg%3E") center/11px no-repeat;}
   .opt input:checked + label{color:#fff;border-color:transparent;box-shadow:0 3px 8px rgba(0,0,0,.15);}
   .opt input:checked + label::before{background:rgba(255,255,255,.25);border-color:#fff;color:#fff;}
   .opt.pass input:checked + label{background:linear-gradient(135deg,var(--pass-bg),var(--pass));}
@@ -215,6 +220,7 @@
   .thumb{position:relative;width:58px;height:58px;border-radius:10px;overflow:hidden;border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.1);}
   .thumb img{width:100%;height:100%;object-fit:cover;display:block;}
   .thumb .rm{
+    display:flex;align-items:center;justify-content:center;
     position:absolute;top:0;right:0;background:rgba(0,0,0,.65);color:#fff;
     width:17px;height:17px;line-height:17px;text-align:center;font-size:11px;
     cursor:pointer;border-radius:0 0 0 7px;
@@ -246,7 +252,7 @@
 </style>
 
 <div class="wrap">
-  <a class="back-link" href="/">&larr; กลับหน้าหลัก</a>
+  <a class="back-link" href="/"><svg class="lu" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> กลับหน้าหลัก</a>
   <div class="app-header">
     <div class="app-header-row">
       <div class="app-header-text">
@@ -441,7 +447,7 @@ const PASS_DETAIL_ITEMS = {
   "c3i1": { label: "บรีฟเรื่องอะไรบ้าง", placeholder: "เช่น โปรโมชั่นเดือนนี้ / Sales Tool ตัวใหม่ / ยอดขายเมื่อวาน" }
 };
 
-const CAT_ICONS = ["🏬","📦","🏷️","🧑‍💼"];
+const CAT_ICONS = ["store","package","tag","user-check"]; // Lucide icon names
 
 const branchSel = document.getElementById('branch');
 BRANCHES.forEach(b=>{
@@ -454,7 +460,7 @@ CATEGORIES.forEach((cat, ci)=>{
   const card = document.createElement('div');
   card.className = 'card';
   card.style.padding = '0';
-  card.innerHTML = `<div class="cat-header"><span class="ttl"><span class="cat-icon">${CAT_ICONS[ci]||'📋'}</span>${ci+1}. ${cat.name}</span><span class="max">เต็ม ${cat.max}</span></div>
+  card.innerHTML = `<div class="cat-header"><span class="ttl"><span class="cat-icon">${ico(CAT_ICONS[ci]||'clipboard-check','19px')}</span>${ci+1}. ${cat.name}</span><span class="max">เต็ม ${cat.max}</span></div>
     <div class="cat-body" id="cat-${ci}"></div>
     <div class="cat-total">คะแนนรวมหมวดนี้ <span id="cattotal-${ci}">0/${cat.max}</span></div>`;
   root.appendChild(card);
@@ -504,7 +510,7 @@ function renderThumbs(id){
   (photoStore[id]||[]).forEach((src, idx)=>{
     const t = document.createElement('div');
     t.className = 'thumb';
-    t.innerHTML = `<img src="${src}"><span class="rm" onclick="removePhoto('${id}',${idx})">✕</span>`;
+    t.innerHTML = `<img src="${src}"><span class="rm" onclick="removePhoto('${id}',${idx})">${ico('x','12px')}</span>`;
     wrap.appendChild(t);
   });
 }
@@ -679,7 +685,7 @@ function sendSummary(){
 
   if(!WEBHOOK_URL){
     copyText(text);
-    showToast('ส่งสรุปผลแล้ว ✅ วางในอีเมล/Line ของทีมได้เลย');
+    showToast('ส่งสรุปผลแล้ว วางในอีเมล/Line ของทีมได้เลย', 'circle-check');
     return;
   }
 
@@ -692,9 +698,9 @@ function sendSummary(){
   .then(res => {
     if(res.ok){
       copyText(text);
-      showToast('ส่งเข้า Google Sheet สำเร็จ ✅ (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)');
+      showToast('ส่งเข้า Google Sheet สำเร็จ (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)', 'circle-check');
       // Tell the portal (same site) that today's checklist is in, so its
-      // deadline card shows "ส่งแล้ววันนี้ ✓" without pressing "ส่งแล้ว" by hand.
+      // deadline card shows "ส่งแล้ววันนี้" without pressing "ส่งแล้ว" by hand.
       try{
         var d = new Date(), p2 = function(n){ return String(n).padStart(2,'0'); };
         localStorage.setItem('hub_done_' + d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_/checklist', 'true');
@@ -754,9 +760,11 @@ function confirmSendEmail(){
   window.location.href = mailto;
 }
 
-function showToast(msg){
+function showToast(msg, icon){
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = msg;
+  if(icon) t.insertAdjacentHTML('afterbegin', ico(icon, '1.1em') + ' ');
+  t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 3000);
 }
 
@@ -797,15 +805,15 @@ document.getElementById('inspector').addEventListener('input', saveDraft);
 function addRewrite(el, field, itemText){
   const row = document.createElement('div');
   row.className = 'ai-row';
-  row.innerHTML = '<button type="button" class="ai-btn">✨ AI ช่วยเรียบเรียง</button>'
-    + '<button type="button" class="ai-undo" hidden>↩ ใช้ข้อความเดิม</button>';
+  row.innerHTML = '<button type="button" class="ai-btn">' + ico('sparkles') + ' AI ช่วยเรียบเรียง</button>'
+    + '<button type="button" class="ai-undo" hidden>' + ico('undo-2') + ' ใช้ข้อความเดิม</button>';
   el.insertAdjacentElement('afterend', row);
   const btn = row.querySelector('.ai-btn'), undo = row.querySelector('.ai-undo');
   let original = null;
   btn.addEventListener('click', async ()=>{
     const text = el.value.trim();
     if(!text){ showToast('พิมพ์ข้อความก่อน แล้วค่อยกดให้ AI ช่วยเรียบเรียง'); el.focus(); return; }
-    btn.disabled = true; btn.textContent = '⏳ กำลังเรียบเรียง...';
+    btn.disabled = true; btn.innerHTML = ico('loader', '1em', 'spin') + ' กำลังเรียบเรียง...';
     try{
       const res = await fetch('/api/rewrite', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -817,11 +825,11 @@ function addRewrite(el, field, itemText){
       el.value = data.text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
       undo.hidden = false;
-      showToast('AI เรียบเรียงให้แล้ว ✨ ตรวจดูอีกครั้งก่อนส่งนะ');
+      showToast('AI เรียบเรียงให้แล้ว ตรวจดูอีกครั้งก่อนส่งนะ', 'sparkles');
     }catch(err){
       showToast(err.message || 'AI ไม่ตอบสนอง กรุณาลองใหม่');
     }finally{
-      btn.disabled = false; btn.textContent = '✨ AI ช่วยเรียบเรียง';
+      btn.disabled = false; btn.innerHTML = ico('sparkles') + ' AI ช่วยเรียบเรียง';
     }
   });
   undo.addEventListener('click', ()=>{

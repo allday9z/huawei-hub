@@ -134,7 +134,7 @@ button{font:inherit;color:inherit}
 .install .t b{display:block;font-weight:600}
 .install .t span{color:var(--muted);font-size:13px}
 .btn{border:0;cursor:pointer;border-radius:999px;padding:9px 16px;font-weight:600;font-size:14px;background:var(--ink);color:#fff;white-space:nowrap}
-.x{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer;width:32px;height:32px;border-radius:50%;flex:none}
+.x{border:0;background:none;font-size:18px;color:var(--muted);cursor:pointer;width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center}
 .x:hover{background:#EBEBEF}
 .foot{margin-top:22px;text-align:center;font-size:12.5px;color:var(--muted)}
 
@@ -153,6 +153,9 @@ button{font:inherit;color:inherit}
 @media (min-width:720px){ .hello{padding-top:34px} .now{--px:30px;padding-bottom:26px} .now h2{font-size:28px} }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
 </style>
+<script>/* Lucide icons (ISC, lucide.dev) — inline SVG, no network needed */
+function ico(n,s,c){var P={"check": "<path d=\"M20 6 9 17l-5-5\"/>"};s=s||'1em';return '<svg class="lu'+(c?' '+c:'')+'" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||'')+'</svg>';}</script>
+<style>.lu{display:inline-block;vertical-align:-0.14em;flex:none}.lu.spin{animation:luspin 1s linear infinite}@keyframes luspin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
 <div class="wrap">
@@ -181,7 +184,7 @@ button{font:inherit;color:inherit}
     <span class="ic" id="notifyIc"></span>
     <div class="t"><b>เปิดการแจ้งเตือน</b><span id="notifyTxt">เตือนก่อนหมดเวลาส่ง Checklist 10 นาที</span></div>
     <button class="btn" id="notifyOn" type="button">เปิด</button>
-    <button class="x" id="notifyHide" type="button" aria-label="ซ่อน">✕</button>
+    <button class="x" id="notifyHide" type="button" aria-label="ซ่อน"><svg class="lu" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
 
   <section class="day" id="day" aria-label="งานตลอดวันของร้าน"></section>
@@ -189,7 +192,7 @@ button{font:inherit;color:inherit}
   <div class="install" id="install" hidden>
     <div class="t"><b>ติดตั้ง HUAWEI Hub ไว้บนเครื่อง</b><span>เปิดจากไอคอนได้ทันที และรับแจ้งเตือนได้</span></div>
     <button class="btn" id="installBtn" type="button">ติดตั้ง</button>
-    <button class="x" id="installHide" type="button" aria-label="ซ่อน">✕</button>
+    <button class="x" id="installHide" type="button" aria-label="ซ่อน"><svg class="lu" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
 
   <p class="foot">มีแอปใหม่ จะขึ้นที่หน้านี้อัตโนมัติ</p>
@@ -199,10 +202,10 @@ button{font:inherit;color:inherit}
   <div class="box">
     <h2 id="guideT">ติดตั้ง HUAWEI Hub</h2>
     <p class="sub">เลือกเครื่องที่ใช้อยู่ ทำครั้งเดียว</p>
-    <details id="gIOS"><summary>iPhone / iPad (Safari)</summary><ol><li>กดปุ่มแชร์ ⬆︎ ด้านล่าง (บน iPad อยู่มุมขวาบน)</li><li>เลื่อนลงแล้วเลือก "เพิ่มไปยังหน้าจอโฮม"</li><li>กด "เพิ่ม" ไอคอน HUAWEI Hub จะอยู่บนหน้าจอ</li></ol></details>
+    <details id="gIOS"><summary>iPhone / iPad (Safari)</summary><ol><li>กดปุ่มแชร์ <svg class="lu" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg> ด้านล่าง (บน iPad อยู่มุมขวาบน)</li><li>เลื่อนลงแล้วเลือก "เพิ่มไปยังหน้าจอโฮม"</li><li>กด "เพิ่ม" ไอคอน HUAWEI Hub จะอยู่บนหน้าจอ</li></ol></details>
     <details id="gAnd"><summary>Android (Chrome)</summary><ol><li>กดเมนู ⋮ มุมขวาบน</li><li>เลือก "ติดตั้งแอป" หรือ "เพิ่มลงในหน้าจอหลัก"</li></ol></details>
     <details id="gMac"><summary>MacBook (Safari)</summary><ol><li>เมนูด้านบน ไฟล์ (File) → "เพิ่มไปยัง Dock"</li><li>กด "เพิ่ม" แล้วเปิดได้จาก Dock / Launchpad</li></ol></details>
-    <details id="gPC"><summary>MacBook / Windows (Chrome หรือ Edge)</summary><ol><li>กดไอคอนติดตั้ง ⊕ ท้ายช่องที่อยู่เว็บ หรือเมนู ⋮ → "ติดตั้ง HUAWEI Hub"</li><li>กด "ติดตั้ง"</li></ol></details>
+    <details id="gPC"><summary>MacBook / Windows (Chrome หรือ Edge)</summary><ol><li>กดไอคอนติดตั้ง <svg class="lu" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg> ท้ายช่องที่อยู่เว็บ หรือเมนู <svg class="lu" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg> → "ติดตั้ง HUAWEI Hub"</li><li>กด "ติดตั้ง"</li></ol></details>
     <button class="btn close" id="guideClose" type="button">เข้าใจแล้ว</button>
   </div>
 </div>
@@ -323,7 +326,7 @@ function renderHero(a, nowKey){
   if(st){
     const start = st.due - 180; // แถบเวลา: 3 ชม. ก่อนกำหนดส่ง
     const pct = Math.min(100, Math.max(0, (minsNow()-start)/(st.due-start)*100));
-    if(st.s==='done') due = '<div class="due done"><div class="row"><span>ส่งแล้ววันนี้ ✓</span><span>กำหนด '+esc(a.due)+' น.</span></div></div>';
+    if(st.s==='done') due = '<div class="due done"><div class="row"><span>ส่งแล้ววันนี้ '+ico('check')+'</span><span>กำหนด '+esc(a.due)+' น.</span></div></div>';
     else if(st.s==='late') due = '<div class="due soon"><div class="row"><span>เลยกำหนดส่ง '+esc(a.due)+' น.</span><b>ส่งด่วน</b></div></div>';
     else due = '<div class="due'+(st.s==='soon'?' soon':'')+'" role="timer"><div class="row"><span>'+(st.s==='soon'?'ใกล้หมดเวลา · ':'')+'ต้องส่งก่อน '+esc(a.due)+' น.</span><b>เหลือ '+dur(st.left)+'</b></div>'+
       '<div class="track"><div class="fill" style="width:'+pct.toFixed(1)+'%"></div></div></div>';
@@ -418,7 +421,7 @@ $('guide').addEventListener('click',e=>{ if(e.target.id==='guide') $('guide').hi
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('guide').hidden=true; });
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-/* ⚙️ ผู้ดูแล: ยังไม่มีหน้า /admin จนกว่าจะเชื่อม ENDPOINT — ซ่อนไว้ก่อน ไม่ให้กดแล้วเจอหน้าว่าง */
+/* ปุ่มฟันเฟือง (ผู้ดูแล): ยังไม่มีหน้า /admin จนกว่าจะเชื่อม ENDPOINT — ซ่อนไว้ก่อน ไม่ให้กดแล้วเจอหน้าว่าง */
 if(!ENDPOINT) document.querySelector('.gear').hidden = true;
 
 /* ===== เริ่ม ===== */

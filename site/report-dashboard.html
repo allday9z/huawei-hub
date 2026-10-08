@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});</script>
 <title>Report Dashboard — HUAWEI Hub by UFicon</title>
+<script>/* Lucide icons (ISC, lucide.dev) — inline SVG, no network needed */
+function ico(n,s,c){var P={"eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>"};s=s||'1em';return '<svg class="lu'+(c?' '+c:'')+'" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||'')+'</svg>';}</script>
+<style>.lu{display:inline-block;vertical-align:-0.14em;flex:none}.lu.spin{animation:luspin 1s linear infinite}@keyframes luspin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
 <meta charset="UTF-8">
@@ -112,7 +115,7 @@
   .issue-text{flex:1;font-size:18px;color:var(--ink);line-height:1.35;}
   .issue-count{flex:none;background:var(--red);color:#fff;font-size:16px;font-weight:800;
     padding:3px 9px;border-radius:999px;}
-  .issue-caret{flex:none;font-size:15px;color:var(--muted);transition:transform .15s ease;}
+  .issue-caret{flex:none;font-size:15px;color:var(--muted);transition:transform .15s ease;display:flex;}
   .issue-item.open .issue-caret{transform:rotate(90deg);}
   .issue-breakdown{display:none;background:#f8f9fa;border-radius:10px;padding:0 12px;margin:0 0 4px;}
   .issue-breakdown.open{display:block;padding:8px 12px;}
@@ -162,7 +165,7 @@
   details.table-details > summary{cursor:pointer;font-size:19.5px;font-weight:800;color:var(--ink);
     list-style:none;display:flex;align-items:center;gap:6px;margin-bottom:12px;}
   details.table-details > summary::-webkit-details-marker{display:none;}
-  details.table-details > summary::before{content:"▸";color:var(--muted);transition:transform .15s;}
+  details.table-details > summary::before{content:"";width:16px;height:16px;flex:none;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%233a3f46%22 stroke-width=%222.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22m9 18 6-6-6-6%22/%3E%3C/svg%3E") center/16px no-repeat;transition:transform .15s;}
   details.table-details[open] > summary::before{transform:rotate(90deg);}
   .back-link{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px 0;padding:7px 14px;border-radius:999px;
     background:#fff;border:1px solid var(--line);color:var(--ink);font-size:19.5px;font-weight:800;text-decoration:none;
@@ -213,7 +216,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <div class="wrap">
-  <a class="back-link" href="/">&larr; กลับหน้าหลัก</a>
+  <a class="back-link" href="/"><svg class="lu" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> กลับหน้าหลัก</a>
   <div id="gate">
     <h2>Report Dashboard</h2>
     <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google ที่ได้รับสิทธิ์ เพื่อดูสรุปผลคะแนนทุกสาขา</p>
@@ -480,7 +483,7 @@ function loadSampleData(){
   currentUser = { email: 'preview@example.com', name: 'Preview Mode', picture: '' };
   document.getElementById('gate').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
-  document.getElementById('userEmail').textContent = '👀 โหมดดูตัวอย่าง (ข้อมูลสมมติ)';
+  document.getElementById('userEmail').innerHTML = ico('eye') + ' โหมดดูตัวอย่าง (ข้อมูลสมมติ)';
   document.getElementById('userAvatar').style.display = 'none';
   populateMonths();
   populatePeriodSubSelect();
@@ -814,7 +817,7 @@ function renderInsights(){
   const issuesArea = document.getElementById('issuesArea');
   const topIssues = Object.entries(issueCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
   if(topIssues.length === 0){
-    issuesArea.innerHTML = `<div class="insight-empty">ยังไม่มีประเด็นที่ต้องปรับปรุงใน${currentScopeLabel()} 🎉</div>`;
+    issuesArea.innerHTML = `<div class="insight-empty">${ico('circle-check')} ยังไม่มีประเด็นที่ต้องปรับปรุงใน${currentScopeLabel()}</div>`;
   } else {
     issuesArea.innerHTML = topIssues.map(([reason, count], i)=>{
       const safeReason = reason.replace(/'/g, "\\'");
@@ -822,7 +825,7 @@ function renderInsights(){
         <div class="issue-rank">${i+1}</div>
         <div class="issue-text">${reason}</div>
         <div class="issue-count">${count} ครั้ง</div>
-        <div class="issue-caret">▸</div>
+        <div class="issue-caret">${ico('chevron-right')}</div>
       </div>
       <div class="issue-breakdown"></div>`;
     }).join('');
@@ -831,7 +834,7 @@ function renderInsights(){
   const rankArea = document.getElementById('branchRankArea');
   const topBranches = Object.entries(branchFailCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
   if(topBranches.length === 0){
-    rankArea.innerHTML = `<div class="insight-empty">ทุกสาขาผ่านครบใน${currentScopeLabel()} 🎉</div>`;
+    rankArea.innerHTML = `<div class="insight-empty">${ico('circle-check')} ทุกสาขาผ่านครบใน${currentScopeLabel()}</div>`;
   } else {
     rankArea.innerHTML = topBranches.map(([branch, count], i)=>
       `<div class="rank-item">
