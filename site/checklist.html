@@ -693,6 +693,12 @@ function sendSummary(){
     if(res.ok){
       copyText(text);
       showToast('ส่งเข้า Google Sheet สำเร็จ ✅ (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)');
+      // Tell the portal (same site) that today's checklist is in, so its
+      // deadline card shows "ส่งแล้ววันนี้ ✓" without pressing "ส่งแล้ว" by hand.
+      try{
+        var d = new Date(), p2 = function(n){ return String(n).padStart(2,'0'); };
+        localStorage.setItem('hub_done_' + d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_/checklist', 'true');
+      }catch(e){}
     } else {
       copyText(text);
       showToast('ส่งเข้า Sheet ไม่สำเร็จ: ' + (res.error||'') + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
