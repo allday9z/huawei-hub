@@ -5,7 +5,7 @@ Static pages (files supplied by Antt, 2026-10-07):
 | Path | File | Purpose |
 |---|---|---|
 | `/` | `site/index.html` (portal.html) | Portal — links to every form |
-| `/case-log` | `site/case-log.html` (huawei-case-log_3.html) | Fail Case Service — log store service cases (demo mode until `ENDPOINT` is set) |
+| `/case-log` | `site/case-log.html` (huawei-case-log_3.html) | Service Case — log store service cases (demo mode until `ENDPOINT` is set) |
 | `/checklist` | `site/checklist.html` (huawei-morning-checklist.html) | Morning Store Checklist (daily) |
 | `/report-dashboard` | `site/report-dashboard.html` | Report Dashboard (Google sign-in, allow-list) |
 
