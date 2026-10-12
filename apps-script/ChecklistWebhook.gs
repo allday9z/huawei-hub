@@ -25,7 +25,10 @@
  *   Morning Brief detail now goes to F29 (its own row). The stray ticks the old
  *   map left on the total rows 13/20/26/32 are cleared on every submission.
  *   B3 now holds just the inspector name (A3 already says "ผู้ตรวจสอบ").
- *   The date cell (D2) is unchanged.
+ *   D2 date is now written like the tabs' own "วันที่ 12/10/2569" (dd/mm/พ.ศ.):
+ *   the form sends ISO "2026-10-12", which the 13:00 summary's date parser read
+ *   as 26/10/2012 — so every branch that used the web form showed up as
+ *   "ยังไม่ส่ง" in the daily email.
  *
  * HOW TO DEPLOY (once): open the Google Sheet with the 9 branch tabs >
  * Extensions > Apps Script > paste this whole file > Deploy > New deployment >
@@ -83,7 +86,7 @@ function doPost(e) {
     }
 
     // Header: date + inspector name (these cells hold the label and value together)
-    sheet.getRange('D2').setValue('วันที่ ' + data.date);
+    sheet.getRange('D2').setValue('วันที่ ' + thaiDate_(data.date));
     sheet.getRange('B3').setValue(String(data.inspector).trim());
 
     // Clean up what the old row map left on the "รวมคะแนน" rows (never touch formulas).
@@ -125,6 +128,12 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (e2) {}
   }
+}
+
+// "2026-10-12" -> "12/10/2569" (format the daily summary parses); anything else is kept as-is.
+function thaiDate_(v) {
+  var m = String(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '/' + m[2] + '/' + (Number(m[1]) + 543) : String(v).trim();
 }
 
 function jsonResponse(obj) {
