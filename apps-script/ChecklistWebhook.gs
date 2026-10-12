@@ -1,5 +1,5 @@
 /**
- * Huawei Morning Store Checklist — Web App receiver (v2, hardened by Neo 2026-10-07)
+ * Huawei Morning Store Checklist — Web App receiver (v2.1, row fix by Neo 2026-10-12)
  * ---------------------------------------------------------------------------------
  * Lets the HTML checklist form write directly into the correct branch tab of
  * THIS Google Sheet ("Huawei Morning Store Check list"), so the existing 13:00
@@ -14,7 +14,18 @@
  *      rewritten — v1 left yesterday's text there when the item failed or the
  *      detail was empty.
  *   4. Basic input checks (date, inspector, 20 answered items).
- *   Cell layout, date text and everything the 13:00 summary reads are unchanged.
+ *
+ * v2.1 (2026-10-12) — ROW FIX. The row numbers inherited from v1 did not match
+ *   the real branch tabs (checked against the actual sheet): every item from
+ *   the 2nd one of each category was written ONE ROW TOO LOW, the last item of
+ *   each category landed on the "รวมคะแนน" row, and row 7 / 15 / 22 / 28 were
+ *   never written. ROW_MAP now follows the sheet:
+ *     หมวด 1 rows 6-12 (total row 13) · หมวด 2 rows 15-19 (total 20)
+ *     หมวด 3 rows 22-25 (total 26)   · หมวด 4 rows 28-31 (total 32)
+ *   Morning Brief detail now goes to F29 (its own row). The stray ticks the old
+ *   map left on the total rows 13/20/26/32 are cleared on every submission.
+ *   B3 now holds just the inspector name (A3 already says "ผู้ตรวจสอบ").
+ *   The date cell (D2) is unchanged.
  *
  * HOW TO DEPLOY (once): open the Google Sheet with the 9 branch tabs >
  * Extensions > Apps Script > paste this whole file > Deploy > New deployment >
@@ -29,11 +40,14 @@ var ALLOWED_BRANCHES = ["HMD-CWN", "HES-KBI", "HMD-CCS", "HMD-EMQ", "HES-TMN", "
 // Row numbers for each category's items, in the same order as the HTML form's
 // CATEGORIES array. These match the Morning Routine template layout.
 var ROW_MAP = [
-  [6, 8, 9, 10, 11, 12, 13],  // 1. ความพร้อมหน้าร้าน (Store Readiness) — 7 items
-  [16, 17, 18, 19, 20],        // 2. ความพร้อมของสินค้าและอุปกรณ์หน้าร้าน (Product & Demo Readiness) — 5 items
-  [23, 24, 25, 26],            // 3. ความพร้อมของสื่อการขายและโปรโมชั่น (Promotion & Sales Tool Readiness) — 4 items
-  [29, 30, 31, 32]             // 4. ความพร้อมของพนักงาน (Staff Readiness) — 4 items
+  [6, 7, 8, 9, 10, 11, 12],    // 1. ความพร้อมหน้าร้าน (Store Readiness) — 7 items, total row 13
+  [15, 16, 17, 18, 19],        // 2. ความพร้อมของสินค้าและอุปกรณ์หน้าร้าน (Product & Demo Readiness) — 5 items, total row 20
+  [22, 23, 24, 25],            // 3. ความพร้อมของสื่อการขายและโปรโมชั่น (Promotion & Sales Tool Readiness) — 4 items, total row 26
+  [28, 29, 30, 31]             // 4. ความพร้อมของพนักงาน (Staff Readiness) — 4 items, total row 32
 ];
+
+// "รวมคะแนน" rows — v1/v2 wrote ticks here by mistake; cleared on each submission.
+var TOTAL_ROWS = [13, 20, 26, 32];
 
 // Items whose column F holds a "pass detail" (e.g. Morning Brief topic) —
 // key "categoryIndex-itemIndex", same as PASS_DETAIL_ITEMS ("c3i1") in the form.
@@ -70,7 +84,15 @@ function doPost(e) {
 
     // Header: date + inspector name (these cells hold the label and value together)
     sheet.getRange('D2').setValue('วันที่ ' + data.date);
-    sheet.getRange('B3').setValue('ชื่อ ' + String(data.inspector).trim());
+    sheet.getRange('B3').setValue(String(data.inspector).trim());
+
+    // Clean up what the old row map left on the "รวมคะแนน" rows (never touch formulas).
+    TOTAL_ROWS.forEach(function (r) {
+      ['B', 'C', 'D', 'E'].forEach(function (col) {
+        var cell = sheet.getRange(col + r);
+        if (!cell.getFormula()) cell.clearContent();
+      });
+    });
 
     data.categories.forEach(function (cat, ci) {
       var rows = ROW_MAP[ci];
