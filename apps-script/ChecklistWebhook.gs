@@ -18,9 +18,10 @@
  *   category. If a tab has no row for an item (e.g. new items not added yet)
  *   NOTHING is written and the form shows which tab/item is missing.
  *
- *   addNewChecklistItems() — run ONCE from the Apps Script editor to add the 4
+ *   addNewChecklistItems() — run ONCE from the Apps Script editor to add the 5
  *   new items (Oct 2026) to all 9 branch tabs: inserts a row per item at the end
- *   of its category (format + checkboxes copied from the row above), updates
+ *   of its category, or right after a given item (format + checkboxes copied
+ *   from the neighbouring item row), updates
  *   "รวมคะแนน คะแนนเต็ม N", the grand total formulas/label, the F3 text and the
  *   H2 grade formula for the new full score. Safe to run twice (items already
  *   present are skipped). previewNewChecklistItems() shows what it would do
@@ -40,10 +41,13 @@ var ALLOWED_BRANCHES = ["HMD-CWN", "HES-KBI", "HMD-CCS", "HMD-EMQ", "HES-TMN", "
 // Category headers in column A, in form order (matched by these key phrases).
 var CATEGORY_KEYS = ["Store Readiness", "Product & Demo Readiness", "Promotion & Sales Tool Readiness", "Staff Readiness"];
 
-// The 4 items added in Oct 2026 — same wording as the HTML form.
+// The items added in Oct 2026 — same wording as the HTML form.
+// `after` = insert right below the item whose label starts with this text
+// (otherwise the item goes at the end of its category).
 var NEW_ITEMS = [
   { cat: 0, text: "ตรวจเช็คกล้องวงจรปิดที่แคชเชียร์และในร้านทำงานครบทุกตัว" },
   { cat: 0, text: "ไม่มีลังกระดาษวางทิ้งไว้" },
+  { cat: 1, text: "แท่น Security เดโม่สะอาด ไม่มีคราบฝุ่นและการชำรุด", after: "โต๊ะ Demo สะอาด" },
   { cat: 1, text: "Security ทำงานปกติ มีไฟเลี้ยงทุกเครื่อง และไม่มีรอยคราบกาวบนสาย" },
   { cat: 2, text: "ป้ายสื่อโฆษณาสินค้าภายในร้าน (Digital/A1/X-Stand) อัปเดตเป็นปัจจุบัน และกำจัดป้ายหมดอายุทิ้งออกนอกบริเวณร้าน" }
 ];
@@ -196,25 +200,31 @@ function addNewItems_(dryRun) {
     todoByCat.forEach(function (todo, c) { todo.forEach(function (n) { added.push('หมวด ' + (c + 1) + ': ' + n.text); }); });
 
     if (!dryRun) {
-      // Insert from the LAST category upwards so earlier row numbers stay valid.
-      for (var c = layout.blocks.length - 1; c >= 0; c--) {
-        var block = layout.blocks[c], todo = todoByCat[c];
-        if (!todo.length) continue;
-        var tmpl = block.items.length ? block.items[block.items.length - 1].row : block.totalRow - 1;
-        todo.forEach(function (n, k) {
-          var at = block.totalRow + k;              // the total row keeps moving down
-          sh.insertRowBefore(at);
-          var cols = sh.getMaxColumns();
-          var src = sh.getRange(tmpl, 1, 1, cols), dst = sh.getRange(at, 1, 1, cols);
-          src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-          src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
-          sh.setRowHeight(at, sh.getRowHeight(tmpl));
-          if (sh.getRange(tmpl, 6).isPartOfMerge()) { try { sh.getRange(at, 6, 1, 4).merge(); } catch (e) {} }
-          sh.getRange(at, 1).setValue(n.text);
-          sh.getRange(at, 2, 1, 4).setValues([[false, false, '', false]]);   // B ผ่าน, C ไม่ผ่าน, D แก้ไข, E N/A
-          sh.getRange(at, 6).setValue('');
+      // Plan every insertion first, then insert from the bottom of the sheet
+      // upwards so the row numbers of the remaining insertions stay valid.
+      var ops = [];
+      layout.blocks.forEach(function (block, c) {
+        var lastItem = block.items.length ? block.items[block.items.length - 1].row : block.totalRow - 1;
+        todoByCat[c].forEach(function (n, k) {
+          var anchor = n.after && block.items.filter(function (it) { return norm_(it.label).indexOf(norm_(n.after)) === 0; })[0];
+          ops.push(anchor ? { at: anchor.row + 1, tmpl: anchor.row, text: n.text, seq: k }
+                          : { at: block.totalRow, tmpl: lastItem, text: n.text, seq: k });
         });
-      }
+      });
+      // Same insertion point: insert in reverse so they end up in listed order.
+      ops.sort(function (a, b) { return b.at - a.at || b.seq - a.seq; });
+      ops.forEach(function (op) {
+        sh.insertRowBefore(op.at);
+        var cols = sh.getMaxColumns();
+        var src = sh.getRange(op.tmpl, 1, 1, cols), dst = sh.getRange(op.at, 1, 1, cols);
+        src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+        src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
+        sh.setRowHeight(op.at, sh.getRowHeight(op.tmpl));
+        if (sh.getRange(op.tmpl, 6).isPartOfMerge()) { try { sh.getRange(op.at, 6, 1, 4).merge(); } catch (e) {} }
+        sh.getRange(op.at, 1).setValue(op.text);
+        sh.getRange(op.at, 2, 1, 4).setValues([[false, false, '', false]]);   // B ผ่าน, C ไม่ผ่าน, D แก้ไข, E N/A
+        sh.getRange(op.at, 6).setValue('');
+      });
     }
 
     // Totals, labels and grade from the resulting layout.
