@@ -67,7 +67,12 @@ function pgStore(url: string): Store {
     async get(key) {
       await init()
       const rows = await sql`SELECT value::text AS value FROM huawei_hub_kv WHERE key = ${key}`
-      return rows.length ? JSON.parse(rows[0].value) : null
+      if (!rows.length) return null
+      // The driver may bind the JSON text as a json value itself, which stores a JSON
+      // *string* — decode until we get the real value (works for both forms).
+      let v: any = JSON.parse(rows[0].value)
+      while (typeof v === "string") v = JSON.parse(v)
+      return v
     },
     async set(key, value) {
       await init()
@@ -94,7 +99,13 @@ async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; log: LogEntry[]
 }
 
 export async function initHub() {
-  try { const d = await loadAll(); console.log(`[hub] store ${store.kind} ok — apps ${d.apps.length}, staff ${d.staff.length}`) }
+  try {
+    await loadAll()
+    // Read back from storage (not the seed in memory) so a broken round-trip shows up here.
+    const apps = await store.get("apps"), staff = await store.get("staff")
+    if (!Array.isArray(apps) || !Array.isArray(staff)) throw new Error(`read-back types: apps ${typeof apps}, staff ${typeof staff}`)
+    console.log(`[hub] store ${store.kind} ok — apps ${apps.length}, staff ${staff.length} (read back)`)
+  }
   catch (e) { console.error(`[hub] store ${store.kind} FAILED`, String(e)) }
 }
 
