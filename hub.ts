@@ -267,7 +267,7 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       const email = await verifyGoogle(bearer(req))
       // Also used by the Report Dashboard script: it forwards the viewer's Google token and
       // asks whether that account may view (canDashboard) — one list, managed on ⚙️.
-      if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false })
+      if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false, allowed: false })
       const d = await loadAll()
       const isOwner = OWNERS.includes(email)
       const login = d.logins.find(l => l.active && l.email === email)
@@ -275,7 +275,8 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       // menus: URLs this account may use (null = not listed -> the "ทุกคน" menus)
       const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
       const canDashboard = !!menus && menus.includes(DASHBOARD_URL)
-      return json({ ok: true, email, isOwner, canDashboard, menus })
+      // allowed = may enter the hub at all (owner or an active email on ⚙️ > สิทธิ์อีเมล)
+      return json({ ok: true, email, isOwner, canDashboard, menus, allowed: isOwner || !!login })
     }
     if (p === "/api/admin/load" || p === "/api/admin/op") {
       const email = await verifyGoogle(bearer(req))
