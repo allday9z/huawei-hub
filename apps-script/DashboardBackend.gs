@@ -50,6 +50,10 @@ function doGet(e) {
     if (action === 'report') {
       return json({ ok: true, rows: getReportRows(), user: auth.email });
     }
+    // Hub home page: "may this account see the Dashboard menu?" — no report data.
+    if (action === 'access') {
+      return json({ ok: true, user: auth.email });
+    }
     return json({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return json({ ok: false, error: String(err) });

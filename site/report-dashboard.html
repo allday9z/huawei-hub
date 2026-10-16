@@ -424,6 +424,7 @@ function reSignIn(message){
 
 function signOut(){
   showGate();
+  try{ localStorage.removeItem('hub_user'); }catch(e){} // ออกจากระบบที่หน้าแรกด้วย (เข้าสู่ระบบร่วมกัน)
   if(window.google && google.accounts) google.accounts.id.disableAutoSelect();
 }
 
