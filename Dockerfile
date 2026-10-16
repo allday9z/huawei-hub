@@ -1,6 +1,6 @@
 FROM oven/bun:1-alpine
 WORKDIR /app
-COPY server.ts ./
+COPY server.ts hub.ts ./
 COPY site/ ./site/
 ENV PORT=80
 EXPOSE 80

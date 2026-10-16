@@ -3,6 +3,7 @@
 // static routing is unchanged: /checklist -> site/checklist.html, etc.
 import { stat } from "node:fs/promises"
 import { resolve, sep } from "node:path"
+import { hubRoute, initHub } from "./hub"
 
 const PORT = Number(process.env.PORT ?? 80)
 const SITE = resolve(import.meta.dir, "site")
@@ -130,6 +131,9 @@ Bun.serve({
   async fetch(req, server) {
     const url = new URL(req.url)
     if (url.pathname === "/health") return new Response("ok")
+    // ⚙️ settings: portal menu + team list (/api/hub/*, /api/admin/*, generated /team.js)
+    const hub = await hubRoute(req, url)
+    if (hub) return hub
     if (url.pathname === "/api/rewrite") {
       if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || server.requestIP(req)?.address || "?"
@@ -140,3 +144,4 @@ Bun.serve({
   },
 })
 console.log(`huawei-hub listening on :${PORT} (AI ${AI_ENDPOINT && AI_KEY ? "on" : "off"})`)
+initHub()

@@ -224,7 +224,6 @@ function ico(n,s,c){var P={"check": "<path d=\"M20 6 9 17l-5-5\"/>"};s=s||'1em';
 
 <script>
 /* ===== ตั้งค่า ===== */
-const ENDPOINT   = ''; // URL เว็บแอป Apps Script (ตัวเดียวกับ /case-log และ /admin) – เว้นว่างได้ จะใช้เมนูด้านล่าง
 const OPEN_HOUR  = 10; // ร้านเปิดกี่โมง
 const REMIND_MIN = 10; // เตือนก่อนหมดเวลาส่งกี่นาที
 
@@ -235,7 +234,7 @@ const MOMENTS = [
   {key:'ปิดร้าน',    label:'ปิดร้าน',      from:20, to:24, cls:'m3'},
   {key:'รายงาน',     label:'ดูรายงาน',     from:-1, to:-1, cls:'m4'}
 ];
-/* เมนูตั้งต้น (ถ้าเชื่อม ENDPOINT แล้ว จะใช้รายการจากหน้าผู้ดูแลแทน) · due = ต้องส่งก่อนกี่โมง */
+/* เมนูตั้งต้น (ใช้เมื่อโหลดจากหน้าตั้งค่า ⚙️ ไม่ได้) · due = ต้องส่งก่อนกี่โมง */
 let APPS = [
   {icon:'checklist', name:'Morning Store Checklist', desc:'ตรวจความพร้อมก่อนเปิดร้าน ทำทุกเช้า', url:'/checklist', moment:'เปิดร้าน', due:'11:00'},
   {icon:'tool', name:'Service Case', desc:'บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ', url:'/case-log', moment:'ระหว่างวัน'},
@@ -398,20 +397,14 @@ document.querySelector('#clock .ci').innerHTML = CLOCK;
 $('notifyOn').onclick = async ()=>{ try{ await Notification.requestPermission(); }catch(e){} render(); };
 $('notifyHide').onclick = ()=>{ store.set('hub_notify_hidden',true); render(); };
 
-/* ===== เมนูจากหน้าผู้ดูแล ===== */
-function loadApps(){
-  if(!ENDPOINT) return;
-  let session=''; try{ session=(JSON.parse(localStorage.getItem('hcl_admin')||'{}').session)||''; }catch(e){}
-  const cb='__hubApps', el=document.createElement('script');
-  window[cb]=res=>{
-    delete window[cb]; el.remove();
-    if(!res||!res.ok||!res.apps||!res.apps.length) return;
-    APPS = res.apps.map(a=>({...a, moment: MOMENTS.some(m=>m.key===a.moment) ? a.moment : 'ระหว่างวัน'}));
+/* ===== เมนูจากหน้าตั้งค่า (⚙️) ===== */
+async function loadApps(){
+  try{
+    const r = await fetch('/api/hub/apps', {cache:'no-store'}); const d = await r.json();
+    if(!d || !d.ok || !Array.isArray(d.apps) || !d.apps.length) return;
+    APPS = d.apps.map(a=>({...a, moment: MOMENTS.some(m=>m.key===a.moment) ? a.moment : 'ระหว่างวัน'}));
     store.set('hub_apps',APPS); render(); checkReminders();
-  };
-  el.onerror=()=>{ delete window[cb]; el.remove(); };
-  el.src=ENDPOINT+(ENDPOINT.includes('?')?'&':'?')+'action=apps&session='+encodeURIComponent(session)+'&callback='+cb;
-  document.body.appendChild(el);
+  }catch(e){}   // ออฟไลน์/เซิร์ฟเวอร์ขัดข้อง: ใช้เมนูล่าสุดที่จำไว้ หรือเมนูตั้งต้น
 }
 
 /* ===== ติดตั้งเป็นแอป ===== */
@@ -433,8 +426,8 @@ $('guide').addEventListener('click',e=>{ if(e.target.id==='guide') $('guide').hi
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('guide').hidden=true; });
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-/* ปุ่มฟันเฟือง (ผู้ดูแล): ยังไม่มีหน้า /admin จนกว่าจะเชื่อม ENDPOINT — ซ่อนไว้ก่อน ไม่ให้กดแล้วเจอหน้าว่าง */
-if(!ENDPOINT) document.querySelector('.gear').hidden = true;
+/* ปุ่มฟันเฟือง ⚙️ (หน้าตั้งค่า): เห็นเฉพาะเจ้าของระบบ — หน้า /admin ตรวจสิทธิ์ที่เซิร์ฟเวอร์อีกชั้น */
+function renderGear(){ document.querySelector('.gear').hidden = !(user && user.isOwner); }
 
 /* ===== เข้าสู่ระบบด้วย Google (บัญชีเดียวกับ Report Dashboard) =====
    เข้าครั้งเดียวที่หน้านี้ → หน้า /report-dashboard ใช้ต่อได้เลย (เก็บ token ไว้ที่ key เดียวกัน)
@@ -463,9 +456,9 @@ function onGoogle(resp){
   const email = String(p.email).toLowerCase().trim();
   try{ localStorage.setItem(TOKEN_KEY, resp.credential); }catch(e){}
   const same = user && user.email === email;
-  user = {email, name: p.name || email, picture: p.picture || '', canDashboard: same ? !!user.canDashboard : false};
+  user = {email, name: p.name || email, picture: p.picture || '', canDashboard: same ? !!user.canDashboard : false, isOwner: same ? !!user.isOwner : false};
   store.set('hub_user', user); renderAcct(); render();
-  checkAccess(resp.credential);
+  checkAccess(resp.credential); checkOwner(resp.credential);
 }
 // ถามสคริปต์ Dashboard ว่าบัญชีนี้มีสิทธิ์ไหม (ไม่ดึงข้อมูลรายงาน)
 // สคริปต์รุ่นที่ยังไม่มี action=access ตอบ "unknown action" หลังผ่านการตรวจสิทธิ์แล้ว = มีสิทธิ์เหมือนกัน
@@ -481,6 +474,15 @@ async function checkAccess(token){
     renderAcct();
   }catch(e){}
 }
+// เจ้าของระบบ (เห็นปุ่ม ⚙️ ตั้งค่า) — เซิร์ฟเวอร์ตรวจ token กับ Google แล้วตอบ
+async function checkOwner(token){
+  try{
+    const r = await fetch('/api/admin/whoami', {headers:{Authorization:'Bearer '+token}, cache:'no-store'}); const d = await r.json();
+    if(!d || !d.ok || !user) return;
+    if(!!user.isOwner !== !!d.isOwner){ user.isOwner = !!d.isOwner; store.set('hub_user', user); }
+    renderAcct();
+  }catch(e){}
+}
 function signOutHub(){
   user = null;
   try{ localStorage.removeItem('hub_user'); localStorage.removeItem(TOKEN_KEY); }catch(e){}
@@ -488,6 +490,7 @@ function signOutHub(){
   renderAcct(); render();
 }
 function renderAcct(){
+  renderGear();
   const el = $('acct');
   if(!user){
     el.innerHTML = '<div class="gsi" id="gsiBtn"></div>';
@@ -497,7 +500,7 @@ function renderAcct(){
   }
   const first = String(user.name||user.email).split(' ')[0];
   el.innerHTML = '<div class="me">'+(user.picture ? '<img src="'+esc(user.picture)+'" alt="" referrerpolicy="no-referrer">' : '<span class="av">'+esc(first.charAt(0))+'</span>')+
-    '<span class="nm"><b>'+esc(first)+'</b><small>'+(user.canDashboard ? 'ผู้ดูแล · เห็นทุกเมนู' : esc(user.email))+'</small></span>'+
+    '<span class="nm"><b>'+esc(first)+'</b><small>'+(user.isOwner ? 'เจ้าของระบบ' : user.canDashboard ? 'ผู้ดูแล · เห็นทุกเมนู' : esc(user.email))+'</small></span>'+
     '<button class="out" type="button" id="hubOut">ออกจากระบบ</button></div>';
   $('hubOut').onclick = signOutHub;
 }
@@ -509,13 +512,13 @@ window.gisReady = function(){
   renderAcct();
   if(user){
     const t = savedToken();
-    if(t) checkAccess(t);                      // อัปเดตสิทธิ์ ถ้ามีการเพิ่ม/ลบอีเมลในสคริปต์
+    if(t){ checkAccess(t); checkOwner(t); }    // อัปเดตสิทธิ์ ถ้ามีการเพิ่ม/ลบอีเมล
     else google.accounts.id.prompt();          // token หมดอายุ: ให้ Google เข้าบัญชีเดิมให้อัตโนมัติ (ไม่ต้องกด)
   }
 };
 
 /* ===== เริ่ม ===== */
-const cached = store.get('hub_apps',null); if(ENDPOINT && cached && cached.length) APPS=cached;
+const cached = store.get('hub_apps',null); if(cached && cached.length) APPS=cached;
 tick(); renderAcct(); render(); checkReminders(); loadApps();
 if(window.__gisLoaded || (window.google && google.accounts && google.accounts.id)) gisReady(); // สคริปต์ Google โหลดเสร็จก่อนหน้านี้
 setInterval(tick, 10000);
