@@ -456,38 +456,52 @@ const PASS_DETAIL_ITEMS = {
 
 const CAT_ICONS = ["store","package","tag","user-check"]; // Lucide icon names
 
-// ผู้ตรวจสอบ: dropdown of the same team as Service Case Log (/team.js),
-// plus "อื่นๆ" for someone not on the list yet (type the name instead).
+// ผู้ตรวจสอบ: dropdown of the same team as Service Case Log (/team.js) — staff of the
+// selected branch + the all-branch HOHW team — plus "อื่นๆ" for someone not on the list yet.
 const INSPECTOR_OTHER = '__other__';
 const inspectorSel = document.getElementById('inspectorSel');
 const inspectorOther = document.getElementById('inspectorOther');
-inspectorSel.innerHTML = '<option value="">เลือกชื่อผู้ตรวจสอบ</option>' +
-  (window.HUB_TEAM || []).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('') +
-  `<option value="${INSPECTOR_OTHER}">อื่นๆ (พิมพ์ชื่อเอง)</option>`;
+const teamFor = b => window.hubTeamFor ? window.hubTeamFor(b) : (window.HUB_TEAM || []);
+let inspectorList = [];
+function fillInspectors(branch){
+  const keep = inspectorName();
+  inspectorList = teamFor(branch);
+  inspectorSel.innerHTML = '<option value="">เลือกชื่อผู้ตรวจสอบ</option>' +
+    inspectorList.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('') +
+    `<option value="${INSPECTOR_OTHER}">อื่นๆ (พิมพ์ชื่อเอง)</option>`;
+  // keep the current choice only if that person is in this branch (or typed by hand)
+  if(inspectorList.includes(keep) || (keep && inspectorSel.dataset.other === '1')) setInspector(keep);
+  else { inspectorSel.value = ''; inspectorOther.value = ''; inspectorOther.hidden = true; }
+}
 function inspectorName(){
-  return (inspectorSel.value === INSPECTOR_OTHER ? inspectorOther.value : inspectorSel.value).trim();
+  return String(inspectorSel.value === INSPECTOR_OTHER ? inspectorOther.value : inspectorSel.value || '').trim();
 }
 function setInspector(name){
   name = String(name || '').trim();
-  const known = (window.HUB_TEAM || []).includes(name);
+  const known = inspectorList.includes(name);
   inspectorSel.value = !name ? '' : (known ? name : INSPECTOR_OTHER);
+  inspectorSel.dataset.other = inspectorSel.value === INSPECTOR_OTHER ? '1' : '';
   inspectorOther.value = known ? '' : name;
   inspectorOther.hidden = inspectorSel.value !== INSPECTOR_OTHER;
 }
 inspectorSel.addEventListener('change', ()=>{
   inspectorOther.hidden = inspectorSel.value !== INSPECTOR_OTHER;
+  inspectorSel.dataset.other = inspectorOther.hidden ? '' : '1';
   if(!inspectorOther.hidden) inspectorOther.focus();
   try{ localStorage.setItem('checklist-inspector', inspectorName()); }catch(e){}
   saveDraft();
 });
 inspectorOther.addEventListener('change', ()=>{ try{ localStorage.setItem('checklist-inspector', inspectorName()); }catch(e){} });
-// Only restore a remembered name that is still on the team list (people who left are dropped).
-try{ const last = localStorage.getItem('checklist-inspector') || ''; if((window.HUB_TEAM || []).includes(last)) setInspector(last); }catch(e){}
 
 const branchSel = document.getElementById('branch');
 BRANCHES.forEach(b=>{
   const o=document.createElement('option'); o.value=b; o.textContent=b; branchSel.appendChild(o);
 });
+// Inspector list follows the branch (registered before loadDraft, which may restore a draft's name).
+fillInspectors(branchSel.value);
+branchSel.addEventListener('change', ()=>fillInspectors(branchSel.value));
+// Only restore a remembered name that is on this branch's list (people who left / other branches are dropped).
+try{ const last = localStorage.getItem('checklist-inspector') || ''; if(inspectorList.includes(last)) setInspector(last); }catch(e){}
 document.getElementById('date').valueAsDate = new Date();
 
 const root = document.getElementById('categories');

@@ -1,11 +1,34 @@
 // HUAWEI Hub — team list shared by Service Case Log (ผู้บันทึก) and Morning
 // Checklist (ผู้ตรวจสอบ). Edit the names here once and both pages update.
-// Format: "ชื่อ นามสกุล (ชื่อเล่น)".
-window.HUB_TEAM = [
-  'วีรภัทร ทองพานิชย (หนึ่ง)','จักรพงศ์ แซ่อิ้ว (เคน)','ณัฐรดา วงศ์แก้ว (นัฐ)','ณชกนก สมพาน (กิ๊บ)',
-  'ศรายุทธ นวลจันทร์ (จอมยุทธ)','จารุวรรณ แสงจันทร์ฉาย (ลูกหมู)','วธันย์พัชร เกิดสวัสดิ์ (เอก)','ภรภัทร ชงโค (แบม)',
-  'อาทิตย์ แสนสอาด (ซัน)','เบญญา ใจกว้าง (หนูนา)','ศตพร อาริยะ (บีช)','ทรงกลด ปานรักษ์ (แฟลช)',
-  'เกวลิน สายฟ้า (ซินดี้)','กฤษฎา ติยะธนากูล (เบนซ์)','นธวิทย์ บุญเจริญ (บอล)','รัฐนันท์ อ่อนทา (สแตมป์)',
-  'กรชนก ศรีรอง (มายด์)','ปรางทิพย์ จันทร์สิงห์ (นุ้ย)',
-  'พงศพัทธ์ จันทร์ลอย (โดนัท)'
+// name: "ชื่อ นามสกุล (ชื่อเล่น)" · branch: สาขาที่ประจำ ("*" = ทุกสาขา / ทีม HOHW)
+// อัปเดตตามรายชื่อจากพี่ Antt 16 ต.ค. 2026
+window.HUB_TEAM_MEMBERS = [
+  { name: 'จารุวรรณ แสงจันทร์ฉาย (ลูกหมู)', branch: 'HES-TMN' },
+  { name: 'ณัฐรดา วงศ์แก้ว (นัฐ)', branch: 'HMD-HKT' },
+  { name: 'จักรพงค์ แซ่อิ้ว (เคน)', branch: 'HMD-HKT' },
+  { name: 'ณชกนก สมพาน (กิ๊บ)', branch: 'HMD-CCS' },
+  { name: 'วธันย์พัชร เกิดสวัสดิ์ (เอก)', branch: 'HES-KBI' },
+  { name: 'ภรภัทร ชงโค (แบม)', branch: 'HES-KBI' },
+  { name: 'อาทิตย์ แสนสอาด (ซัน)', branch: 'HMD-EMQ' },
+  { name: 'เบญญา ใจกว้าง (หนูนา)', branch: 'HMD-MVH' },
+  { name: 'ปรางทิพย์ จันทร์สิงห์ (นุ้ย)', branch: 'HMD-CCS' },
+  { name: 'เบญจา พันธุ์ทุมสาร (เบญ)', branch: 'HMD-MVH' },
+  { name: 'เกวลิน สายฟ้า (ซินดี้)', branch: 'HES-TMN' },
+  { name: 'พันธวิทย์ บุญเจริญ (บอล)', branch: 'HMD-KKC' },
+  { name: 'กรชนก ศรีรอง (มายด์)', branch: 'HMD-EMQ' },
+  { name: 'รัฐนันท์ อ่อนทา (แสตมป์)', branch: 'HMD-CNV' },
+  { name: 'จิราพร ปราโมช ณ อยุธยา (เบนซ์)', branch: 'HES-TMN' },
+  { name: 'พงศกร สารสูตร (น๊อต)', branch: 'HMD-CWN' },
+  // ทีม HOHW — ดูแลทุกสาขา
+  { name: 'เวธกา เชาวน์ชูเวชช (จ๊ะจ๋า)', branch: '*' },
+  { name: 'ศรายุทธ นวลจันทร์ (จอมยุทธ)', branch: '*' },
+  { name: 'วีรภัทร ทองพานิชย (หนึ่ง)', branch: '*' },
+  { name: 'ทรงกลด ปานรักษ์ (แฟลช)', branch: '*' }
 ];
+window.HUB_TEAM = window.HUB_TEAM_MEMBERS.map(m => m.name);
+// Names for one branch: that branch's staff first, then the all-branch team. No branch = everyone.
+window.hubTeamFor = function (branch) {
+  const M = window.HUB_TEAM_MEMBERS;
+  if (!branch) return M.map(m => m.name);
+  return M.filter(m => m.branch === branch).concat(M.filter(m => m.branch === '*')).map(m => m.name);
+};
