@@ -37,7 +37,8 @@ const ALLOWED_EMAILS = [
   "benyapakamonphan@gmail.com",
   "th.verapat@gmail.com",
   "jomyutdamon1211@gmail.com",
-  "qwe031168492@gmail.com"
+  "qwe031168492@gmail.com",
+  "wetaga.chow@gmail.com"      // เวธกา เชาวน์ชูเวชช (จ๊ะจ๋า) — HOHW
   // "someone.else@uficon.com",
 ];
 
