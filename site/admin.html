@@ -123,7 +123,7 @@ label.l{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap
     <div class="titlerow">
       <div>
         <h1><em>HUAWEI Hub</em> · ตั้งค่า</h1>
-        <p class="tag">จัดการเมนูแอปบนหน้าแรก และรายชื่อพนักงานของแต่ละสาขา</p>
+        <p class="tag">จัดการเมนูแอปบนหน้าแรก รายชื่อพนักงานของแต่ละสาขา และอีเมลที่เข้าใช้งานได้</p>
       </div>
       <span style="display:flex;gap:14px"><a class="link" href="/" style="text-decoration:none">← กลับหน้าแรก</a><button class="link" id="reload">↻ โหลดใหม่</button></span>
     </div>
@@ -181,9 +181,9 @@ $('logoGate').src = $('logoTop').src;
 
 let token = null;
 let D = null;            // ข้อมูลจากเซิร์ฟเวอร์
-let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','log'].includes(tab)) tab='apps';
+let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','logins','log'].includes(tab)) tab='apps';
 let editApp = null;
-let staffFilter = 'ALL', editStaff = null;
+let staffFilter = 'ALL', editStaff = null, addLogin = false;
 
 /* ===== token ===== */
 function jwtPayload(t){
@@ -258,9 +258,9 @@ const brList = s => String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
 
 function render(){
   $('meEmail').textContent = D.me; $('meRole').textContent = 'เจ้าของระบบ';
-  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['log','ประวัติ','']];
+  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','อีเมลเข้าใช้งาน',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
   $('tabs').innerHTML = T.map(([k,l,n])=>'<button class="tab'+(tab===k?' on':'')+'" data-tab="'+k+'">'+l+(n!==''?'<span>'+n+'</span>':'')+'</button>').join('');
-  $('view').innerHTML = tab==='apps'?viewApps():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
+  $('view').innerHTML = tab==='apps'?viewApps():tab==='logins'?viewLogins():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
 }
 
 function staffEditor(s){
@@ -336,9 +336,23 @@ function viewLog(){
   return '<section class="card"><ul class="rows log">'+(D.log.length?D.log.map(l=>'<li><div class="when">'+esc(l.at)+' · '+esc(l.by)+'</div><div><b>'+esc(l.op)+'</b>'+(l.detail?' — '+esc(l.detail):'')+'</div></li>').join(''):'<li class="hint">ยังไม่มีประวัติการแก้ไข</li>')+'</ul></section>';
 }
 
+function viewLogins(){
+  const owners = D.owners || [D.owner];
+  return '<section class="card">'+
+    '<p class="hint" style="margin-bottom:12px">อีเมล Google ที่ล็อกอินที่หน้าแรกแล้ว <b>เห็นทุกเมนู</b> รวม Checklist Report Dashboard · อีเมลอื่น (เช่น อีเมลสาขา) เห็นเฉพาะเมนูพนักงาน · หน้าตั้งค่า ⚙️ เข้าได้เฉพาะเจ้าของระบบ</p>'+
+    '<div class="bar"><span class="grow"></span><button class="btn" data-act="lgNew">+ เพิ่มอีเมล</button></div>'+
+    (addLogin?'<div class="editor"><div class="grid2" style="margin-top:0"><label class="l">อีเมล<input class="f" id="elEmail" type="email" placeholder="name@gmail.com"></label><label class="l">ชื่อ / หมายเหตุ<input class="f" id="elNote" placeholder="เช่น สมชาย (ชาย) · HOHW"></label></div><div class="acts"><button class="btn sec" data-act="lgCancel">ยกเลิก</button><button class="btn" data-act="lgSave">เพิ่ม</button></div></div>':'')+
+    '<ul class="rows">'+D.logins.map(l=>{
+      const own = owners.includes(l.email);
+      return '<li class="'+(l.active?'':'off')+'"><div class="main"><div class="name">'+esc(l.email)+'</div><div class="sub">'+esc(l.note||'')+'</div><div>'+
+        (own?'<span class="tagb all">เจ้าของระบบ</span><span class="tagb">เข้าหน้าตั้งค่าได้</span>':'<span class="tagb ok">เห็นทุกเมนู</span>')+(l.active?'':'<span class="tagb red">ปิดสิทธิ์</span>')+
+      '</div></div>'+(own?'':'<button class="btn '+(l.active?'warn':'sec')+'" data-act="lgToggle" data-email="'+esc(l.email)+'">'+(l.active?'ปิดสิทธิ์':'เปิดสิทธิ์')+'</button>')+'</li>';
+    }).join('')+'</ul></section>';
+}
+
 /* ===== Actions ===== */
 document.addEventListener('click', async e=>{
-  const t = e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; store.set('hub_admin_tab',tab); editStaff=editApp=null; return render(); }
+  const t = e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; store.set('hub_admin_tab',tab); editStaff=editApp=null; addLogin=false; return render(); }
   const sf = e.target.closest('[data-sf]'); if(sf){ staffFilter=sf.dataset.sf; return render(); }
   const eb = e.target.closest('[data-esbr]');
   if(eb){
@@ -362,6 +376,18 @@ document.addEventListener('click', async e=>{
     const body={op:'app.save',row:editApp.row||0,icon:editApp.icon,name:editApp.name,desc:editApp.desc,url:editApp.url,audience:editApp.audience,moment:editApp.moment||'ระหว่างวัน',due:editApp.due||'',active:act==='appToggle'?!editApp.active:editApp.active};
     a.disabled=true;
     if(await op(body, act==='appToggle'?(body.active?'แสดงบนหน้าแรกแล้ว':'ซ่อนจากหน้าแรกแล้ว'):'บันทึกแอปแล้ว')){ editApp=null; render(); } else a.disabled=false;
+  }
+  if(act==='lgNew'){ addLogin=true; render(); $('elEmail').focus(); }
+  if(act==='lgCancel'){ addLogin=false; render(); }
+  if(act==='lgSave'){
+    const em=$('elEmail').value.trim().toLowerCase();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast('อีเมลไม่ถูกต้อง',true);
+    a.disabled=true; if(await op({op:'login.save',email:em,note:$('elNote').value.trim(),active:true},'เพิ่มอีเมลแล้ว')){ addLogin=false; render(); } else a.disabled=false;
+  }
+  if(act==='lgToggle'){
+    const x=D.logins.find(y=>y.email===a.dataset.email);
+    if(x.active && !confirm('ปิดสิทธิ์ '+x.email+'?\nจะไม่เห็นเมนู Dashboard และเปิด Dashboard ไม่ได้')) return;
+    a.disabled=true; await op({op:'login.save',email:x.email,note:x.note,active:!x.active}, x.active?'ปิดสิทธิ์แล้ว':'เปิดสิทธิ์แล้ว');
   }
   if(act==='staffNew'){ editStaff={row:0,name:'',branches:staffFilter!=='ALL'&&staffFilter!=='NONE'?staffFilter:'',active:true}; render(); $('esName').focus(); }
   if(act==='staffEdit'){ const s=D.staff.find(x=>x.row===+a.dataset.row); editStaff={...s}; render(); }

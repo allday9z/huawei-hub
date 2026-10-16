@@ -28,12 +28,19 @@ const ICON_KEYS = ["checklist", "tool", "chart", "moon", "box", "receipt", "cale
 type App = { id: number; icon: string; name: string; desc: string; url: string; audience: string; moment: string; due: string; active: boolean }
 type Staff = { id: number; name: string; branches: string; active: boolean }
 type LogEntry = { at: string; by: string; op: string; detail: string }
+// Emails that may sign in and see every menu (incl. the Report Dashboard).
+type Login = { id: number; email: string; note: string; active: boolean }
 
 // Seed = what the site shipped with on 16 Oct 2026 (used only when the store is empty).
 const SEED_APPS: Omit<App, "id">[] = [
   { icon: "checklist", name: "Morning Store Checklist", desc: "ตรวจความพร้อมก่อนเปิดร้าน ทำทุกเช้า", url: "/checklist", audience: "ทุกคน", moment: "เปิดร้าน", due: "11:00", active: true },
   { icon: "tool", name: "Service Case", desc: "บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ", url: "/case-log", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true },
   { icon: "chart", name: "Checklist Report Dashboard", desc: "สรุปคะแนน Checklist ทุกสาขา (เฉพาะผู้มีสิทธิ์)", url: "/report-dashboard", audience: "ผู้ดูแล", moment: "รายงาน", due: "", active: true },
+]
+// = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
+const SEED_LOGINS: [string, string][] = [
+  ["benyapakamonphan@gmail.com", "เจ้าของระบบ"], ["marketing.uficon@gmail.com", ""], ["th.verapat@gmail.com", "วีรภัทร (หนึ่ง) · HOHW"],
+  ["jomyutdamon1211@gmail.com", "ศรายุทธ (จอมยุทธ) · HOHW"], ["qwe031168492@gmail.com", ""], ["wetaga.chow@gmail.com", "เวธกา (จ๊ะจ๋า) · HOHW"],
 ]
 const SEED_STAFF: [string, string][] = [
   ["จารุวรรณ แสงจันทร์ฉาย (ลูกหมู)", "HES-TMN"], ["ณัฐรดา วงศ์แก้ว (นัฐ)", "HMD-HKT"], ["จักรพงค์ แซ่อิ้ว (เคน)", "HMD-HKT"],
@@ -89,13 +96,15 @@ function locked<T>(fn: () => Promise<T>): Promise<T> {
   const run = chain.then(fn, fn); chain = run.catch(() => {}); return run
 }
 
-async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; log: LogEntry[] }> {
+async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]; log: LogEntry[] }> {
   let apps = await store.get("apps") as App[] | null
   let staff = await store.get("staff") as Staff[] | null
   const log = (await store.get("log") as LogEntry[] | null) ?? []
   if (!apps) { apps = SEED_APPS.map((a, i) => ({ id: i + 1, ...a })); await store.set("apps", apps); console.log("[hub] seeded apps", apps.length) }
   if (!staff) { staff = SEED_STAFF.map(([name, branches], i) => ({ id: i + 1, name, branches, active: true })); await store.set("staff", staff); console.log("[hub] seeded staff", staff.length) }
-  return { apps, staff, log }
+  let logins = await store.get("logins") as Login[] | null
+  if (!logins) { logins = SEED_LOGINS.map(([email, note], i) => ({ id: i + 1, email, note, active: true })); await store.set("logins", logins); console.log("[hub] seeded logins", logins.length) }
+  return { apps, staff, logins, log }
 }
 
 export async function initHub() {
@@ -203,6 +212,20 @@ async function applyOp(a: any, by: string): Promise<void> {
       }
       await store.set("staff", d.staff); break
     }
+    case "login.save": {
+      const email = clean(a.email, 120).toLowerCase(), note = clean(a.note, 80)
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("อีเมลไม่ถูกต้อง")
+      const cur = d.logins.find(x => x.email === email)
+      const active = a.active !== false
+      if (!active && OWNERS.includes(email)) throw new Error("ปิดสิทธิ์เจ้าของระบบไม่ได้")
+      if (cur) {
+        const was = cur.active; Object.assign(cur, { note, active })
+        log(was && !active ? "ปิดสิทธิ์อีเมล" : !was && active ? "เปิดสิทธิ์อีเมล" : "แก้ไขอีเมล", email)
+      } else {
+        d.logins.push({ id: Math.max(0, ...d.logins.map(x => x.id)) + 1, email, note, active: true }); log("เพิ่มอีเมลเข้าใช้งาน", email)
+      }
+      await store.set("logins", d.logins); break
+    }
     default: throw new Error("ยังไม่รองรับคำสั่งนี้")
   }
   await store.set("log", d.log.slice(0, 300))
@@ -210,7 +233,7 @@ async function applyOp(a: any, by: string): Promise<void> {
 
 async function adminData(email: string) {
   const d = await loadAll()
-  return { ok: true, me: email, isOwner: true, owner: OWNERS[0], branches: BRANCHES, apps: d.apps.map(a => ({ ...a, row: a.id })), staff: d.staff.map(s => ({ ...s, row: s.id })), log: d.log }
+  return { ok: true, me: email, isOwner: true, owner: OWNERS[0], owners: OWNERS, branches: BRANCHES, apps: d.apps.map(a => ({ ...a, row: a.id })), staff: d.staff.map(s => ({ ...s, row: s.id })), logins: d.logins.map(l => ({ ...l, row: l.id })), log: d.log }
 }
 
 /* ---------------- routes ---------------- */
@@ -226,7 +249,13 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
     if (p === "/api/hub/team" && req.method === "GET") return json({ ok: true, team: publicTeam((await loadAll()).staff) })
     if (p === "/api/admin/whoami" && req.method === "GET") {
       const email = await verifyGoogle(bearer(req))
-      return json({ ok: !!email, email, isOwner: !!email && OWNERS.includes(email) })
+      // Also used by the Report Dashboard script: it forwards the viewer's Google token and
+      // asks whether that account may view (canDashboard) — one list, managed on ⚙️.
+      if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false })
+      const d = await loadAll()
+      const isOwner = OWNERS.includes(email)
+      const canDashboard = isOwner || d.logins.some(l => l.active && l.email === email)
+      return json({ ok: true, email, isOwner, canDashboard })
     }
     if (p === "/api/admin/load" || p === "/api/admin/op") {
       const email = await verifyGoogle(bearer(req))

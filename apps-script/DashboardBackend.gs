@@ -1,5 +1,13 @@
 /**
- * Report Dashboard — Web App backend (v2, security-hardened by Neo 2026-10-07)
+ * Report Dashboard — Web App backend (v3, Neo 2026-10-16)
+ * ---------------------------------------------------------------------------
+ * v3: WHO MAY VIEW is managed on the HUAWEI Hub ⚙️ settings page ("อีเมลเข้าใช้งาน").
+ *   After verifying the Google token, this script forwards it to the hub
+ *   (HUB_URL/api/admin/whoami), which checks it with Google again and answers
+ *   canDashboard from that list. If the hub can't be reached, ALLOWED_EMAILS
+ *   below is used as a fallback — so the dashboard never locks everyone out.
+ *
+ * (v2, security-hardened by Neo 2026-10-07)
  * ---------------------------------------------------------------------------
  * Bind this script to the "Huawei_Report Morning Checklist" spreadsheet
  * Extensions > Apps Script > paste this file in.
@@ -31,7 +39,10 @@ const SHEET_NAME = "ชีต1";
 // Same value as GOOGLE_CLIENT_ID in report-dashboard.html (…apps.googleusercontent.com)
 const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 
-// Everyone allowed to view the Report Dashboard (Google account emails).
+// HUAWEI Hub (manages the list of emails allowed to view — ⚙️ > อีเมลเข้าใช้งาน)
+const HUB_URL = "https://huawei-hub.coolify.pve01.prod.uficon.com";
+
+// FALLBACK ONLY (used when the hub can't be reached). Manage people on the hub ⚙️ page.
 const ALLOWED_EMAILS = [
   "marketing.uficon@gmail.com",
   "benyapakamonphan@gmail.com",
@@ -91,13 +102,28 @@ function verifyIdToken_(idToken) {
   let result;
   if (info.aud !== GOOGLE_CLIENT_ID || !issuerOk || !notExpired) {
     result = { ok: false, error: 'การเข้าสู่ระบบไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่' };
-  } else if (!verified || !isAllowed(email)) {
+  } else if (!verified || !allowedByHub_(idToken, email)) {
     result = { ok: false, error: 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้' };
   } else {
     result = { ok: true, email: email };
   }
   cache.put(cacheKey, JSON.stringify(result), 300);
   return result;
+}
+
+// Ask the hub whether this signed-in account may view (list on the ⚙️ settings page).
+// Falls back to ALLOWED_EMAILS if the hub is down or answers something unexpected.
+function allowedByHub_(idToken, email) {
+  try {
+    const res = UrlFetchApp.fetch(HUB_URL + '/api/admin/whoami', {
+      headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true
+    });
+    if (res.getResponseCode() === 200) {
+      const r = JSON.parse(res.getContentText());
+      if (r && r.ok && String(r.email || '').toLowerCase() === email) return r.canDashboard === true;
+    }
+  } catch (err) {}
+  return isAllowed(email);
 }
 
 function isAllowed(email) {

@@ -431,11 +431,10 @@ function renderGear(){ document.querySelector('.gear').hidden = !(user && user.i
 
 /* ===== เข้าสู่ระบบด้วย Google (บัญชีเดียวกับ Report Dashboard) =====
    เข้าครั้งเดียวที่หน้านี้ → หน้า /report-dashboard ใช้ต่อได้เลย (เก็บ token ไว้ที่ key เดียวกัน)
-   ใครมีสิทธิ์ดู Dashboard ตัดสินที่ ALLOWED_EMAILS ใน DashboardBackend.gs ที่เดียว:
+   ใครเห็นทุกเมนูตัดสินที่รายชื่อ "อีเมลเข้าใช้งาน" ในหน้าตั้งค่า ⚙️ ที่เดียว (สคริปต์ Dashboard ถามรายชื่อเดียวกันนี้):
    มีสิทธิ์ → เห็นทุกเมนู รวม Dashboard / ไม่มีสิทธิ์หรือไม่ได้เข้าสู่ระบบ → เห็นเมนูพนักงาน (Checklist, Service Case)
    การซ่อนเมนูเป็นแค่หน้าตา — ข้อมูล Dashboard ยังถูกกันที่ฝั่งสคริปต์เสมอ */
 const GOOGLE_CLIENT_ID  = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
-const DASHBOARD_BACKEND = "https://script.google.com/macros/s/AKfycbxTc2A-lzNMDWYEKo-3YYMkK5Td4ApRtRM65Dy0SPCWnBv8MfZRMiLJ_dT_Z_U-Plk/exec";
 const TOKEN_KEY = 'hub-dashboard-idtoken'; // key เดียวกับที่ report-dashboard อ่าน
 let user = store.get('hub_user', null);     // {email, name, picture, canDashboard}
 function canSee(a){ return a.audience !== 'ผู้ดูแล' || !!(user && user.canDashboard); }
@@ -458,28 +457,16 @@ function onGoogle(resp){
   const same = user && user.email === email;
   user = {email, name: p.name || email, picture: p.picture || '', canDashboard: same ? !!user.canDashboard : false, isOwner: same ? !!user.isOwner : false};
   store.set('hub_user', user); renderAcct(); render();
-  checkAccess(resp.credential); checkOwner(resp.credential);
+  checkOwner(resp.credential);
 }
-// ถามสคริปต์ Dashboard ว่าบัญชีนี้มีสิทธิ์ไหม (ไม่ดึงข้อมูลรายงาน)
-// สคริปต์รุ่นที่ยังไม่มี action=access ตอบ "unknown action" หลังผ่านการตรวจสิทธิ์แล้ว = มีสิทธิ์เหมือนกัน
-async function checkAccess(token){
-  try{
-    const res = await fetch(DASHBOARD_BACKEND+'?action=access&idToken='+encodeURIComponent(token));
-    const d = await res.json();
-    let can = null;
-    if(d.ok || /^unknown action/.test(d.error||'')) can = true;
-    else if(/สิทธิ์/.test(d.error||'')) can = false;
-    if(can === null || !user) return;           // token หมดอายุ/เชื่อมต่อไม่ได้ — คงค่าเดิมไว้
-    if(user.canDashboard !== can){ user.canDashboard = can; store.set('hub_user', user); render(); }
-    renderAcct();
-  }catch(e){}
-}
-// เจ้าของระบบ (เห็นปุ่ม ⚙️ ตั้งค่า) — เซิร์ฟเวอร์ตรวจ token กับ Google แล้วตอบ
+// สิทธิ์ของบัญชีนี้ (เซิร์ฟเวอร์ตรวจ token กับ Google): isOwner = เห็น ⚙️, canDashboard = อยู่ใน "อีเมลเข้าใช้งาน" → เห็นทุกเมนู
 async function checkOwner(token){
   try{
     const r = await fetch('/api/admin/whoami', {headers:{Authorization:'Bearer '+token}, cache:'no-store'}); const d = await r.json();
     if(!d || !d.ok || !user) return;
-    if(!!user.isOwner !== !!d.isOwner){ user.isOwner = !!d.isOwner; store.set('hub_user', user); }
+    const changed = !!user.isOwner !== !!d.isOwner || !!user.canDashboard !== !!d.canDashboard;
+    user.isOwner = !!d.isOwner; user.canDashboard = !!d.canDashboard;   // รายชื่อ "อีเมลเข้าใช้งาน" ในหน้า ⚙️
+    if(changed){ store.set('hub_user', user); render(); }
     renderAcct();
   }catch(e){}
 }
@@ -512,7 +499,7 @@ window.gisReady = function(){
   renderAcct();
   if(user){
     const t = savedToken();
-    if(t){ checkAccess(t); checkOwner(t); }    // อัปเดตสิทธิ์ ถ้ามีการเพิ่ม/ลบอีเมล
+    if(t) checkOwner(t);                       // อัปเดตสิทธิ์ ถ้ามีการเพิ่ม/ลบอีเมลในหน้า ⚙️
     else google.accounts.id.prompt();          // token หมดอายุ: ให้ Google เข้าบัญชีเดิมให้อัตโนมัติ (ไม่ต้องกด)
   }
 };
