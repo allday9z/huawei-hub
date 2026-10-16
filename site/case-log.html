@@ -710,6 +710,8 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadBran
 /* ===== Init ===== */
 $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 $('demo').hidden = !!ENDPOINT;
+// สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้
+try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb) && hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } }catch(e){}
 fillSelect($('branch'),BRANCHES,settings.branch,'เลือกสาขา');
 loadStaff();
 setDate(svcDate);

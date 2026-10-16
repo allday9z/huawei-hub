@@ -497,6 +497,8 @@ const branchSel = document.getElementById('branch');
 BRANCHES.forEach(b=>{
   const o=document.createElement('option'); o.value=b; o.textContent=b; branchSel.appendChild(o);
 });
+// Branch chosen on the hub sign-in page (hub_branch) is this device's branch.
+try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb)) branchSel.value = hb; }catch(e){}
 // Inspector list follows the branch (registered before loadDraft, which may restore a draft's name).
 fillInspectors(branchSel.value);
 branchSel.addEventListener('change', ()=>fillInspectors(branchSel.value));
