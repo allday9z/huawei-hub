@@ -41,15 +41,16 @@ var ALLOWED_BRANCHES = ["HMD-CWN", "HES-KBI", "HMD-CCS", "HMD-EMQ", "HES-TMN", "
 // Category headers in column A, in form order (matched by these key phrases).
 var CATEGORY_KEYS = ["Store Readiness", "Product & Demo Readiness", "Promotion & Sales Tool Readiness", "Staff Readiness"];
 
-// The items added in Oct 2026 — same wording as the HTML form.
+// The items added in Oct 2026 — wording as finalised in the sheet on 16 Oct 2026
+// (same text as the HTML form, so a re-run of addNewChecklistItems is a no-op).
 // `after` = insert right below the item whose label starts with this text
 // (otherwise the item goes at the end of its category).
 var NEW_ITEMS = [
-  { cat: 0, text: "ตรวจเช็คกล้องวงจรปิดที่แคชเชียร์และในร้านทำงานครบทุกตัว" },
-  { cat: 0, text: "ไม่มีลังกระดาษวางทิ้งไว้" },
-  { cat: 1, text: "แท่น Security เดโม่สะอาด ไม่มีคราบฝุ่นและการชำรุด", after: "โต๊ะ Demo สะอาด" },
-  { cat: 1, text: "Security ทำงานปกติ มีไฟเลี้ยงทุกเครื่อง และไม่มีรอยคราบกาวบนสาย" },
-  { cat: 2, text: "ป้ายสื่อโฆษณาสินค้าภายในร้าน (Digital/A1/X-Stand) อัปเดตเป็นปัจจุบัน และกำจัดป้ายหมดอายุทิ้งออกนอกบริเวณร้าน" }
+  { cat: 0, text: "ระบบกล้องวงจรปิด (CCTV) บริเวณแคชเชียร์และภายในร้านทำงานครบทุกตัว" },
+  { cat: 0, text: "ไม่มีลังกระดาษหรือบรรจุภัณฑ์วางทิ้งไว้ภายในร้าน" },
+  { cat: 1, text: "อุปกรณ์ Security ทำงานปกติ มีไฟเลี้ยงครบทุกเครื่อง และไม่มีคราบกาวบนสาย" },
+  { cat: 1, text: "แท่นวาง Security ของเครื่อง Demo สะอาด ไม่มีฝุ่น และไม่ชำรุด" },
+  { cat: 2, text: "สื่อโฆษณาภายในร้าน (Digital / A1 / X-Stand) เป็นของปัจจุบัน และนำป้ายที่หมดอายุออกจากบริเวณร้านแล้ว" }
 ];
 
 // Grade thresholds for H2, scaled from the original 20 / 18 / 15 / 12.

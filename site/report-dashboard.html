@@ -260,7 +260,7 @@ function ico(n,s,c){var P={"eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.7
     <div class="kpi-grid">
       <div class="kpi-card" style="--accent:var(--red)">
         <div class="kpi-label">คะแนนเฉลี่ยรวม</div>
-        <div class="kpi-value" id="kpiAvg">—<span class="unit">/20</span></div>
+        <div class="kpi-value" id="kpiAvg">—</div>
         <div class="kpi-sub" id="kpiAvgSub">เดือนนี้</div>
       </div>
       <div class="kpi-card" style="--accent:var(--pass)">
@@ -288,12 +288,12 @@ function ico(n,s,c){var P={"eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.7
     <div class="kpi-grid-small">
       <div class="kpi-card" style="--accent:var(--warn)">
         <div class="kpi-label">คะแนนเฉลี่ยวันล่าสุด</div>
-        <div class="kpi-value" id="kpiLatestDay">—<span class="unit">/20</span></div>
+        <div class="kpi-value" id="kpiLatestDay">—</div>
         <div class="kpi-sub" id="kpiLatestDaySub">&nbsp;</div>
       </div>
       <div class="kpi-card" style="--accent:var(--warn)">
         <div class="kpi-label">คะแนนเฉลี่ยสัปดาห์ล่าสุด</div>
-        <div class="kpi-value" id="kpiLatestWeek">—<span class="unit">/20</span></div>
+        <div class="kpi-value" id="kpiLatestWeek">—</div>
         <div class="kpi-sub" id="kpiLatestWeekSub">&nbsp;</div>
       </div>
     </div>
@@ -707,10 +707,51 @@ function weekGroups(rows){
   return groups;
 }
 
-function dayAverage(row){
+// Full score changed from 20 to 25 on 16 Oct 2026 (5 checklist items added).
+// Each day is judged against the full score in force that day, so older
+// months still read /20; an average over a period that spans the change is
+// put on the /25 scale (old scores scaled x25/20) so the numbers compare.
+const FULL_OLD = 20, FULL_NEW = 25, FULL_CUTOVER = 20261016; // yyyymmdd
+const TH_MONTHS = ['มกรา','กุมภา','มีนา','เมษา','พฤษภา','มิถุนา','กรกฎา','สิงหา','กันยา','ตุลา','พฤศจิกา','ธันวา'];
+const TH_MONTHS_SHORT = ['ม.ค','ก.พ','มี.ค','เม.ย','พ.ค','มิ.ย','ก.ค','ส.ค','ก.ย','ต.ค','พ.ย','ธ.ค'];
+const EN_MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+// "10/2026", "ตุลาคม 26", "ต.ค. 69", "October 2026" -> {y, m} (Gregorian) or null
+function parseMonthLabel(label){
+  const s = String(label || '').trim();
+  if(s.startsWith('ตัวอย่าง')) return null; // built-in demo data is all /20
+  const m = s.match(/(\d{1,2})\s*\/\s*(\d{4})/);
+  if(m) return { y: toAD(Number(m[2])), m: Number(m[1]) };
+  let mon = TH_MONTHS.findIndex(t=>s.includes(t));
+  if(mon < 0) mon = TH_MONTHS_SHORT.findIndex(t=>s.includes(t));
+  if(mon < 0){ const low = s.toLowerCase(); mon = EN_MONTHS.findIndex(t=>low.includes(t)); }
+  const yr = s.match(/(\d{2,4})\s*$/);
+  if(mon < 0 || !yr) return null;
+  return { y: toAD(Number(yr[1])), m: mon + 1 };
+}
+function toAD(y){
+  if(y >= 2400) return y - 543;                            // พ.ศ. 4 หลัก
+  if(y < 100) return y >= 60 ? 2500 + y - 543 : 2000 + y;  // "69" = 2569, "26" = 2026
+  return y;
+}
+function rowFull(row){
+  if(Object.values(row.branches || {}).some(c=>Number(c.score) > FULL_OLD)) return FULL_NEW;
+  const ym = parseMonthLabel(row.month);
+  if(!ym) return FULL_OLD;
+  const day = row.isAverage || isNaN(Number(row.date)) ? 31 : Number(row.date);
+  return ym.y*10000 + ym.m*100 + day >= FULL_CUTOVER ? FULL_NEW : FULL_OLD;
+}
+function scaleOf(rows){ return rows.some(r=>rowFull(r) === FULL_NEW) ? FULL_NEW : FULL_OLD; }
+function scoreOn(score, row, scale){ return score * scale / rowFull(row); }
+function unit(scale){ return '<span class="unit">/' + scale + '</span>'; }
+function scoreColor(avg, scale){
+  return avg === null ? '#d6d9dd' : (avg >= scale*0.975 ? 'var(--pass)' : avg >= scale*0.9 ? 'var(--warn)' : 'var(--fail)');
+}
+
+function dayAverage(row, scale){
   const scores = Object.values(row.branches).map(c=>Number(c.score)).filter(v=>!isNaN(v));
   if(!scores.length) return null;
-  return scores.reduce((a,b)=>a+b,0) / scores.length;
+  const avg = scores.reduce((a,b)=>a+b,0) / scores.length;
+  return scale ? scoreOn(avg, row, scale) : avg;
 }
 
 // Small cards: average of the most recent day with data, and the most
@@ -728,7 +769,7 @@ function renderLatestOverview(){
     if(dayAverage(sortedRows[i]) !== null){ latestDayRow = sortedRows[i]; break; }
   }
   if(latestDayRow){
-    dayEl.innerHTML = dayAverage(latestDayRow).toFixed(2) + '<span class="unit">/20</span>';
+    dayEl.innerHTML = dayAverage(latestDayRow).toFixed(2) + unit(rowFull(latestDayRow));
     daySubEl.textContent = `วันที่ ${latestDayRow.date}`;
   } else {
     dayEl.innerHTML = '—';
@@ -737,14 +778,15 @@ function renderLatestOverview(){
 
   const groups = weekGroups(rows);
   const weekIdxs = Object.keys(groups).map(Number).sort((a,b)=>a-b);
-  let latestWeekIdx = null, latestWeekAvg = null;
+  let latestWeekIdx = null, latestWeekAvg = null, latestWeekScale = FULL_OLD;
   for(let i = weekIdxs.length - 1; i >= 0; i--){
     const wIdx = weekIdxs[i];
-    const avgs = groups[wIdx].map(dayAverage).filter(v=>v !== null);
-    if(avgs.length){ latestWeekIdx = wIdx; latestWeekAvg = avgs.reduce((a,b)=>a+b,0)/avgs.length; break; }
+    const sc = scaleOf(groups[wIdx]);
+    const avgs = groups[wIdx].map(r=>dayAverage(r, sc)).filter(v=>v !== null);
+    if(avgs.length){ latestWeekIdx = wIdx; latestWeekAvg = avgs.reduce((a,b)=>a+b,0)/avgs.length; latestWeekScale = sc; break; }
   }
   if(latestWeekIdx !== null){
-    weekEl.innerHTML = latestWeekAvg.toFixed(2) + '<span class="unit">/20</span>';
+    weekEl.innerHTML = latestWeekAvg.toFixed(2) + unit(latestWeekScale);
     const lastDay = Math.max(...groups[latestWeekIdx].map(r=>Number(r.date)));
     weekSubEl.textContent = `สัปดาห์ที่ ${latestWeekIdx} (วันที่ ${(latestWeekIdx-1)*7+1}-${Math.min(latestWeekIdx*7, lastDay)})`;
   } else {
@@ -753,9 +795,9 @@ function renderLatestOverview(){
   }
 }
 
-function trendBarRow(label, avg){
-  const pct = avg !== null ? Math.max(4, (avg/20)*100) : 0;
-  const color = avg === null ? '#d6d9dd' : (avg >= 19.5 ? 'var(--pass)' : avg >= 18 ? 'var(--warn)' : 'var(--fail)');
+function trendBarRow(label, avg, scale){
+  const pct = avg !== null ? Math.max(4, (avg/scale)*100) : 0;
+  const color = scoreColor(avg, scale);
   return `<div class="chart-row">
     <div class="chart-branch chart-branch-wide">${label}</div>
     <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color};"></div></div>
@@ -774,11 +816,12 @@ function renderTrendChart(){
     if(rows.length === 0){ area.innerHTML = '<div style="color:var(--muted);font-size:19px;">ไม่มีข้อมูล</div>'; return; }
     const groups = weekGroups(rows);
     const weekIdxs = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+    const sc = scaleOf(rows);
     area.innerHTML = weekIdxs.map(wIdx=>{
-      const avgs = groups[wIdx].map(dayAverage).filter(v=>v !== null);
+      const avgs = groups[wIdx].map(r=>dayAverage(r, sc)).filter(v=>v !== null);
       const avg = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : null;
       const label = `สัปดาห์ที่ ${wIdx} (วันที่ ${(wIdx-1)*7+1}-${wIdx*7})`;
-      return trendBarRow(label, avg);
+      return trendBarRow(label, avg, sc);
     }).join('');
     return;
   }
@@ -786,11 +829,12 @@ function renderTrendChart(){
   // 'week' or 'day' — one bar per day within whatever periodRows() returned.
   const rows = periodRows().filter(r=>!isNaN(Number(r.date))).sort((a,b)=>Number(a.date)-Number(b.date));
   if(rows.length === 0){ area.innerHTML = '<div style="color:var(--muted);font-size:19px;">ไม่มีข้อมูล</div>'; return; }
-  area.innerHTML = rows.map(r=>trendBarRow('วันที่ ' + r.date, dayAverage(r))).join('');
+  const sc = scaleOf(rows);
+  area.innerHTML = rows.map(r=>trendBarRow('วันที่ ' + r.date, dayAverage(r, sc), sc)).join('');
 }
 
 // Counts how often each reason text appears this month, and how many
-// times each branch scored below 20 — surfaces what keeps going wrong
+// times each branch scored below full — surfaces what keeps going wrong
 // and where, so it's easy to see without reading every row by hand.
 let lastIssueBranches = {}; // reason -> { branch: count }, rebuilt each render
 
@@ -803,7 +847,7 @@ function renderInsights(){
   rows.forEach(r=>{
     Object.entries(r.branches).forEach(([branch, cell])=>{
       const score = Number(cell.score);
-      if(isNaN(score) || score >= 20) return;
+      if(isNaN(score) || score >= rowFull(r)) return;
       branchFailCounts[branch] = (branchFailCounts[branch] || 0) + 1;
       const reason = (cell.reason || '').trim();
       if(!reason) return;
@@ -873,6 +917,7 @@ function monthRows(){
 function branchStats(){
   const rows = periodRows();
   const branches = allBranchNames();
+  const scale = scaleOf(rows);
   const stats = {};
   branches.forEach(b=>{
     let sum = 0, count = 0, perfect = true, hasData = false;
@@ -882,11 +927,12 @@ function branchStats(){
       const score = Number(cell.score);
       if(isNaN(score)) return;
       hasData = true;
-      sum += score; count++;
-      if(score < 20) perfect = false;
+      sum += scoreOn(score, r, scale); count++;
+      if(score < rowFull(r)) perfect = false;
     });
     stats[b] = { avg: count ? sum / count : null, count, perfect: hasData && perfect, hasData };
   });
+  Object.defineProperty(stats, 'scale', { value: scale, enumerable: false }); // keeps Object.keys(stats) = branches
   return stats;
 }
 
@@ -897,7 +943,7 @@ function renderKpis(){
 
   const allAvgs = branches.map(b=>stats[b].avg).filter(v=>v !== null);
   const overallAvg = allAvgs.length ? (allAvgs.reduce((a,b)=>a+b,0) / allAvgs.length) : null;
-  document.getElementById('kpiAvg').innerHTML = overallAvg !== null ? overallAvg.toFixed(2) + '<span class="unit">/20</span>' : '—';
+  document.getElementById('kpiAvg').innerHTML = overallAvg !== null ? overallAvg.toFixed(2) + unit(stats.scale) : '—';
 
   let lowestBranch = null, lowestVal = Infinity;
   let bestBranch = null, bestVal = -Infinity;
@@ -907,13 +953,13 @@ function renderKpis(){
     if(stats[b].avg > bestVal){ bestVal = stats[b].avg; bestBranch = b; }
   });
   document.getElementById('kpiLowest').textContent = lowestBranch || '—';
-  document.getElementById('kpiLowestSub').textContent = lowestBranch ? `เฉลี่ย ${lowestVal.toFixed(2)}/20` : ' ';
+  document.getElementById('kpiLowestSub').textContent = lowestBranch ? `เฉลี่ย ${lowestVal.toFixed(2)}/${stats.scale}` : ' ';
   document.getElementById('kpiBest').textContent = bestBranch || '—';
-  document.getElementById('kpiBestSub').textContent = bestBranch ? `เฉลี่ย ${bestVal.toFixed(2)}/20` : ' ';
+  document.getElementById('kpiBestSub').textContent = bestBranch ? `เฉลี่ย ${bestVal.toFixed(2)}/${stats.scale}` : ' ';
 
   let failDays = 0;
   rows.forEach(r=>{
-    const hasFail = Object.values(r.branches).some(c => Number(c.score) < 20);
+    const hasFail = Object.values(r.branches).some(c => Number(c.score) < rowFull(r));
     if(hasFail) failDays++;
   });
   document.getElementById('kpiFailDays').textContent = failDays + ' วัน';
@@ -930,8 +976,8 @@ function renderChart(){
 
   area.innerHTML = branches.map(b=>{
     const avg = stats[b].avg;
-    const pct = avg !== null ? Math.max(4, (avg/20)*100) : 0;
-    const color = avg === null ? '#d6d9dd' : (avg >= 19.5 ? 'var(--pass)' : avg >= 18 ? 'var(--warn)' : 'var(--fail)');
+    const pct = avg !== null ? Math.max(4, (avg/stats.scale)*100) : 0;
+    const color = scoreColor(avg, stats.scale);
     return `<div class="chart-row">
       <div class="chart-branch">${b}</div>
       <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color};"></div></div>
@@ -953,6 +999,10 @@ function renderTable(){
   const rows = reportRows.filter(r=>r.month === month);
   const branches = allBranchNames();
   const table = document.getElementById('reportTable');
+  const dayRows = rows.filter(r=>!r.isAverage);
+  const monthFull = scaleOf(dayRows);
+  // The sheet's own "Avr" row mixes /20 and /25 days in the month of the change — don't colour it then.
+  const monthMixed = dayRows.some(r=>rowFull(r) === FULL_OLD) && dayRows.some(r=>rowFull(r) === FULL_NEW);
 
   let html = '<thead><tr><th class="branch-name">วันที่</th>' +
     branches.map(b=>`<th>${b}</th>`).join('') + '</tr></thead><tbody>';
@@ -963,7 +1013,7 @@ function renderTable(){
       const cell = r.branches[b];
       if(!cell){ html += '<td><span class="empty-cell">—</span></td>'; return; }
       const score = (cell.score === '' || cell.score === null || cell.score === undefined) ? '—' : fmtScore(cell.score);
-      const cls = score === '—' ? '' : (Number(score) < 20 ? 'fail' : 'pass');
+      const cls = score === '—' || (r.isAverage && monthMixed) ? '' : (Number(score) < (r.isAverage ? monthFull : rowFull(r)) ? 'fail' : 'pass');
       const reason = cell.reason ? `<div class="reason-note">${cell.reason}</div>` : '';
       html += `<td><span class="score-chip ${cls}">${score}</span>${reason}</td>`;
     });
@@ -1002,13 +1052,13 @@ function renderAutoSummary(){
 
   let failDays = 0;
   rows.forEach(r=>{
-    const hasFail = Object.values(r.branches).some(c => Number(c.score) < 20);
+    const hasFail = Object.values(r.branches).some(c => Number(c.score) < rowFull(r));
     if(hasFail) failDays++;
   });
 
-  let sentence = `ภาพรวม${currentScopeLabel()} คะแนนเฉลี่ย ${overallAvg.toFixed(2)}/20 จาก ${branches.length} สาขา `;
-  sentence += bestBranch ? `สาขาที่ทำได้ดีที่สุดคือ ${bestBranch} (เฉลี่ย ${bestVal.toFixed(2)}/20) ` : '';
-  sentence += lowestBranch ? `ส่วนสาขาที่ควรดูแลเพิ่มคือ ${lowestBranch} (เฉลี่ย ${lowestVal.toFixed(2)}/20) ` : '';
+  let sentence = `ภาพรวม${currentScopeLabel()} คะแนนเฉลี่ย ${overallAvg.toFixed(2)}/${stats.scale} จาก ${branches.length} สาขา `;
+  sentence += bestBranch ? `สาขาที่ทำได้ดีที่สุดคือ ${bestBranch} (เฉลี่ย ${bestVal.toFixed(2)}/${stats.scale}) ` : '';
+  sentence += lowestBranch ? `ส่วนสาขาที่ควรดูแลเพิ่มคือ ${lowestBranch} (เฉลี่ย ${lowestVal.toFixed(2)}/${stats.scale}) ` : '';
   sentence += `มีวันที่พบรายการไม่ผ่าน ${failDays} วันจากทั้งหมดใน${currentScopeLabel()} `;
   sentence += topIssueEntry ? `ปัญหาที่พบบ่อยที่สุดคือ "${topIssueEntry[0]}" (${topIssueEntry[1]} ครั้ง)` : `ไม่มีประเด็นที่ต้องปรับปรุงซ้ำๆ ใน${currentScopeLabel()}`;
   el.textContent = sentence.trim() + '.';
