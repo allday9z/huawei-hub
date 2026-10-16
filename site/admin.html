@@ -183,7 +183,7 @@ let token = null;
 let D = null;            // ข้อมูลจากเซิร์ฟเวอร์
 let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','logins','log'].includes(tab)) tab='apps';
 let editApp = null;
-let staffFilter = 'ALL', editStaff = null, addLogin = false;
+let staffFilter = 'ALL', editStaff = null, editLogin = null;
 
 /* ===== token ===== */
 function jwtPayload(t){
@@ -258,7 +258,7 @@ const brList = s => String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
 
 function render(){
   $('meEmail').textContent = D.me; $('meRole').textContent = 'เจ้าของระบบ';
-  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','อีเมลเห็นทุกเมนู',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
+  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','สิทธิ์อีเมล',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
   $('tabs').innerHTML = T.map(([k,l,n])=>'<button class="tab'+(tab===k?' on':'')+'" data-tab="'+k+'">'+l+(n!==''?'<span>'+n+'</span>':'')+'</button>').join('');
   $('view').innerHTML = tab==='apps'?viewApps():tab==='logins'?viewLogins():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
 }
@@ -336,24 +336,41 @@ function viewLog(){
   return '<section class="card"><ul class="rows log">'+(D.log.length?D.log.map(l=>'<li><div class="when">'+esc(l.at)+' · '+esc(l.by)+'</div><div><b>'+esc(l.op)+'</b>'+(l.detail?' — '+esc(l.detail):'')+'</div></li>').join(''):'<li class="hint">ยังไม่มีประวัติการแก้ไข</li>')+'</ul></section>';
 }
 
+// Who may use which menu: each listed email has "ทุกเมนู" or its own set of menus.
+function menuLabel(l){
+  if(l.menus==='*') return '<span class="tagb all">ทุกเมนู</span>';
+  return (l.menus||[]).map(id=>{ const a=D.apps.find(x=>x.row===id); return a?'<span class="tagb ok">'+esc(a.name)+'</span>':''; }).join('');
+}
+function loginEditor(l){
+  const all = l.menus==='*', sel = all ? [] : (l.menus||[]);
+  return '<div class="editor">'+
+    '<div class="grid2" style="margin-top:0"><label class="l">อีเมล<input class="f" id="elEmail" type="email" placeholder="name@gmail.com" value="'+esc(l.email)+'"'+(l.row?' disabled':'')+'></label>'+
+    '<label class="l">ชื่อ / หมายเหตุ<input class="f" id="elNote" placeholder="เช่น HMD-CWN หรือ สมชาย (ชาย) · HOHW" value="'+esc(l.note||'')+'"></label></div>'+
+    '<div><p class="hint" style="margin-bottom:6px">ใช้เมนูไหนได้บ้าง (เลือกได้หลายเมนู)</p><div class="chips">'+
+      '<button type="button" class="chip'+(all?' on':'')+'" data-lgm="*">ทุกเมนู</button>'+
+      D.apps.map(a=>'<button type="button" class="chip'+(!all&&sel.includes(a.row)?' on':'')+'" data-lgm="'+a.row+'">'+esc(a.name)+(a.active?'':' (ซ่อนอยู่)')+'</button>').join('')+
+    '</div></div>'+
+    '<div class="acts"><button class="btn sec" data-act="lgCancel">ยกเลิก</button><button class="btn" data-act="lgSave">'+(l.row?'บันทึก':'เพิ่ม')+'</button></div></div>';
+}
 function viewLogins(){
   const owners = D.owners || [D.owner];
   return '<section class="card">'+
-    '<p class="note"><b>ใส่เฉพาะคนที่ให้ดู Dashboard ได้</b> — อีเมลในรายการนี้ล็อกอินแล้วเห็นทุกเมนู รวม Checklist Report Dashboard (คะแนนของทุกสาขา)<br>'+
-    'อีเมลสาขา/พนักงานทั่วไป <b>ไม่ต้องใส่</b> — ล็อกอินด้วย Google ได้อยู่แล้ว และจะเห็นเฉพาะเมนูพนักงาน (Checklist, Service Case) · หน้าตั้งค่า ⚙️ เข้าได้เฉพาะเจ้าของระบบ</p>'+
+    '<p class="note">กำหนดว่าแต่ละอีเมล<b>ใช้เมนูไหนได้บ้าง</b> — ล็อกอินที่หน้าแรกแล้วจะเห็นเฉพาะเมนูที่เลือก · เลือก "Checklist Report Dashboard" = เปิดดูคะแนนทุกสาขาได้<br>'+
+    'อีเมลที่ไม่อยู่ในรายการ (หรือไม่ได้ล็อกอิน) เห็นเมนูที่ตั้งเป็น "ทุกคน" ในแท็บแอป · หน้าตั้งค่า ⚙️ เข้าได้เฉพาะเจ้าของระบบ</p>'+
     '<div class="bar"><span class="grow"></span><button class="btn" data-act="lgNew">+ เพิ่มอีเมล</button></div>'+
-    (addLogin?'<div class="editor"><div class="grid2" style="margin-top:0"><label class="l">อีเมล<input class="f" id="elEmail" type="email" placeholder="name@gmail.com"></label><label class="l">ชื่อ / หมายเหตุ<input class="f" id="elNote" placeholder="เช่น สมชาย (ชาย) · HOHW"></label></div><div class="acts"><button class="btn sec" data-act="lgCancel">ยกเลิก</button><button class="btn" data-act="lgSave">เพิ่ม</button></div></div>':'')+
+    (editLogin && !editLogin.row ? loginEditor(editLogin) : '')+
     '<ul class="rows">'+D.logins.map(l=>{
       const own = owners.includes(l.email);
       return '<li class="'+(l.active?'':'off')+'"><div class="main"><div class="name">'+esc(l.email)+'</div><div class="sub">'+esc(l.note||'')+'</div><div>'+
-        (own?'<span class="tagb all">เจ้าของระบบ</span><span class="tagb">เข้าหน้าตั้งค่าได้</span>':'<span class="tagb ok">เห็นทุกเมนู</span>')+(l.active?'':'<span class="tagb red">ปิดสิทธิ์</span>')+
-      '</div></div>'+(own?'':'<button class="btn '+(l.active?'warn':'sec')+'" data-act="lgToggle" data-email="'+esc(l.email)+'">'+(l.active?'ปิดสิทธิ์':'เปิดสิทธิ์')+'</button>')+'</li>';
+        (own?'<span class="tagb all">เจ้าของระบบ · ทุกเมนู</span><span class="tagb">เข้าหน้าตั้งค่าได้</span>':menuLabel(l))+(l.active?'':'<span class="tagb red">ปิดสิทธิ์</span>')+
+      '</div></div>'+(own?'':'<button class="btn sec" data-act="lgEdit" data-email="'+esc(l.email)+'">แก้ไข</button><button class="btn '+(l.active?'warn':'sec')+'" data-act="lgToggle" data-email="'+esc(l.email)+'">'+(l.active?'ปิดสิทธิ์':'เปิดสิทธิ์')+'</button>')+'</li>'+
+      (editLogin && editLogin.row===l.row ? '<li style="display:block;border-top:0;padding-top:0">'+loginEditor(editLogin)+'</li>' : '');
     }).join('')+'</ul></section>';
 }
 
 /* ===== Actions ===== */
 document.addEventListener('click', async e=>{
-  const t = e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; store.set('hub_admin_tab',tab); editStaff=editApp=null; addLogin=false; return render(); }
+  const t = e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; store.set('hub_admin_tab',tab); editStaff=editApp=editLogin=null; return render(); }
   const sf = e.target.closest('[data-sf]'); if(sf){ staffFilter=sf.dataset.sf; return render(); }
   const eb = e.target.closest('[data-esbr]');
   if(eb){
@@ -362,6 +379,14 @@ document.addEventListener('click', async e=>{
     if(v==='*') sel = sel.includes('*')?[]:['*'];
     else { sel = sel.filter(x=>x!=='*'); sel = sel.includes(v)?sel.filter(x=>x!==v):sel.concat(v); }
     editStaff.branches = sel.join(', '); return render();
+  }
+  const lm = e.target.closest('[data-lgm]');
+  if(lm){
+    readLoginEditor();
+    const v = lm.dataset.lgm;
+    if(v==='*') editLogin.menus = editLogin.menus==='*' ? [] : '*';
+    else { let sel = editLogin.menus==='*' ? [] : (editLogin.menus||[]).slice(); const id=+v; sel = sel.includes(id) ? sel.filter(x=>x!==id) : sel.concat(id); editLogin.menus = sel; }
+    return render();
   }
   const au = e.target.closest('[data-aud]'); if(au){ readAppEditor(); editApp.audience=au.dataset.aud; return render(); }
   const ic = e.target.closest('[data-icon]'); if(ic){ readAppEditor(); editApp.icon=ic.dataset.icon; return render(); }
@@ -378,12 +403,17 @@ document.addEventListener('click', async e=>{
     a.disabled=true;
     if(await op(body, act==='appToggle'?(body.active?'แสดงบนหน้าแรกแล้ว':'ซ่อนจากหน้าแรกแล้ว'):'บันทึกแอปแล้ว')){ editApp=null; render(); } else a.disabled=false;
   }
-  if(act==='lgNew'){ addLogin=true; render(); $('elEmail').focus(); }
-  if(act==='lgCancel'){ addLogin=false; render(); }
+  if(act==='lgNew'){ editLogin={row:0,email:'',note:'',menus:D.apps.filter(x=>x.audience!=='ผู้ดูแล').map(x=>x.row),active:true}; render(); $('elEmail').focus(); }
+  if(act==='lgEdit'){ editLogin={...D.logins.find(y=>y.email===a.dataset.email)}; render(); }
+  if(act==='lgCancel'){ editLogin=null; render(); }
   if(act==='lgSave'){
-    const em=$('elEmail').value.trim().toLowerCase();
+    readLoginEditor();
+    const em=String(editLogin.email||'').trim().toLowerCase();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast('อีเมลไม่ถูกต้อง',true);
-    a.disabled=true; if(await op({op:'login.save',email:em,note:$('elNote').value.trim(),active:true},'เพิ่มอีเมลแล้ว')){ addLogin=false; render(); } else a.disabled=false;
+    if(editLogin.menus!=='*' && !(editLogin.menus||[]).length) return toast('เลือกอย่างน้อย 1 เมนู',true);
+    if(!editLogin.row && D.logins.some(y=>y.email===em)) return toast('มีอีเมลนี้ในรายการแล้ว — กดแก้ไขที่แถวนั้น',true);
+    a.disabled=true;
+    if(await op({op:'login.save',email:em,note:editLogin.note||'',menus:editLogin.menus,active:editLogin.active!==false}, editLogin.row?'บันทึกแล้ว':'เพิ่มอีเมลแล้ว')){ editLogin=null; render(); } else a.disabled=false;
   }
   if(act==='lgToggle'){
     const x=D.logins.find(y=>y.email===a.dataset.email);
@@ -403,6 +433,7 @@ document.addEventListener('click', async e=>{
   }
 });
 function readAppEditor(){ if(!editApp||!$('eaName')) return; editApp.due=$('eaDue').value; editApp.name=$('eaName').value.trim(); editApp.desc=$('eaDesc').value.trim(); editApp.url=$('eaUrl').value.trim(); }
+function readLoginEditor(){ if(!editLogin) return; const e=$('elEmail'), n=$('elNote'); if(e && !editLogin.row) editLogin.email=e.value; if(n) editLogin.note=n.value; }
 function readStaffEditor(){ const n=$('esName'); if(n && editStaff) editStaff.name=n.value; }
 
 /* ===== Init ===== */

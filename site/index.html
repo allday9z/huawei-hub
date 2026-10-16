@@ -437,7 +437,11 @@ function renderGear(){ document.querySelector('.gear').hidden = !(user && user.i
 const GOOGLE_CLIENT_ID  = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 const TOKEN_KEY = 'hub-dashboard-idtoken'; // key เดียวกับที่ report-dashboard อ่าน
 let user = store.get('hub_user', null);     // {email, name, picture, canDashboard}
-function canSee(a){ return a.audience !== 'ผู้ดูแล' || !!(user && user.canDashboard); }
+// ล็อกอินแล้วและอยู่ในแท็บ "สิทธิ์อีเมล" → เห็นเฉพาะเมนูที่เลือกให้ / อื่นๆ → เมนูที่ตั้งเป็น "ทุกคน"
+function canSee(a){
+  if(user && Array.isArray(user.menus)) return user.menus.includes(a.url);
+  return a.audience !== 'ผู้ดูแล';
+}
 
 function jwtPayload(t){
   try{
@@ -455,7 +459,7 @@ function onGoogle(resp){
   const email = String(p.email).toLowerCase().trim();
   try{ localStorage.setItem(TOKEN_KEY, resp.credential); }catch(e){}
   const same = user && user.email === email;
-  user = {email, name: p.name || email, picture: p.picture || '', canDashboard: same ? !!user.canDashboard : false, isOwner: same ? !!user.isOwner : false};
+  user = {email, name: p.name || email, picture: p.picture || '', canDashboard: same ? !!user.canDashboard : false, isOwner: same ? !!user.isOwner : false, menus: same ? (user.menus || null) : null};
   store.set('hub_user', user); renderAcct(); render();
   checkOwner(resp.credential);
 }
@@ -464,8 +468,9 @@ async function checkOwner(token){
   try{
     const r = await fetch('/api/admin/whoami', {headers:{Authorization:'Bearer '+token}, cache:'no-store'}); const d = await r.json();
     if(!d || !d.ok || !user) return;
-    const changed = !!user.isOwner !== !!d.isOwner || !!user.canDashboard !== !!d.canDashboard;
-    user.isOwner = !!d.isOwner; user.canDashboard = !!d.canDashboard;   // รายชื่อ "อีเมลเข้าใช้งาน" ในหน้า ⚙️
+    const menus = Array.isArray(d.menus) ? d.menus : null;
+    const changed = !!user.isOwner !== !!d.isOwner || !!user.canDashboard !== !!d.canDashboard || JSON.stringify(user.menus||null) !== JSON.stringify(menus);
+    user.isOwner = !!d.isOwner; user.canDashboard = !!d.canDashboard; user.menus = menus;   // แท็บ "สิทธิ์อีเมล" ในหน้า ⚙️
     if(changed){ store.set('hub_user', user); render(); }
     renderAcct();
   }catch(e){}
@@ -487,7 +492,7 @@ function renderAcct(){
   }
   const first = String(user.name||user.email).split(' ')[0];
   el.innerHTML = '<div class="me">'+(user.picture ? '<img src="'+esc(user.picture)+'" alt="" referrerpolicy="no-referrer">' : '<span class="av">'+esc(first.charAt(0))+'</span>')+
-    '<span class="nm"><b>'+esc(first)+'</b><small>'+(user.isOwner ? 'เจ้าของระบบ' : user.canDashboard ? 'ผู้ดูแล · เห็นทุกเมนู' : esc(user.email))+'</small></span>'+
+    '<span class="nm"><b>'+esc(first)+'</b><small>'+(user.isOwner ? 'เจ้าของระบบ' : user.canDashboard ? 'ผู้ดูแล · ดู Dashboard ได้' : esc(user.email))+'</small></span>'+
     '<button class="out" type="button" id="hubOut">ออกจากระบบ</button></div>';
   $('hubOut').onclick = signOutHub;
 }

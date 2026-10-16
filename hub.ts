@@ -28,8 +28,11 @@ const ICON_KEYS = ["checklist", "tool", "chart", "moon", "box", "receipt", "cale
 type App = { id: number; icon: string; name: string; desc: string; url: string; audience: string; moment: string; due: string; active: boolean }
 type Staff = { id: number; name: string; branches: string; active: boolean }
 type LogEntry = { at: string; by: string; op: string; detail: string }
-// Emails that may sign in and see every menu (incl. the Report Dashboard).
-type Login = { id: number; email: string; note: string; active: boolean }
+// Emails with their own menu set (menus: "*" = every menu, or app ids). Signed-in accounts
+// that are not listed see the menus whose audience is "ทุกคน".
+type Login = { id: number; email: string; note: string; active: boolean; menus: "*" | number[] }
+const DASHBOARD_URL = "/report-dashboard"
+
 
 // Seed = what the site shipped with on 16 Oct 2026 (used only when the store is empty).
 const SEED_APPS: Omit<App, "id">[] = [
@@ -103,7 +106,14 @@ async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]
   if (!apps) { apps = SEED_APPS.map((a, i) => ({ id: i + 1, ...a })); await store.set("apps", apps); console.log("[hub] seeded apps", apps.length) }
   if (!staff) { staff = SEED_STAFF.map(([name, branches], i) => ({ id: i + 1, name, branches, active: true })); await store.set("staff", staff); console.log("[hub] seeded staff", staff.length) }
   let logins = await store.get("logins") as Login[] | null
-  if (!logins) { logins = SEED_LOGINS.map(([email, note], i) => ({ id: i + 1, email, note, active: true })); await store.set("logins", logins); console.log("[hub] seeded logins", logins.length) }
+  if (!logins) { logins = SEED_LOGINS.map(([email, note], i) => ({ id: i + 1, email, note, active: true, menus: "*" as const })); await store.set("logins", logins); console.log("[hub] seeded logins", logins.length) }
+  // Before per-email menus existed every entry meant "all menus". Branch accounts (note = a branch
+  // code) were added to sign in for staff work, so they get every menu except the Dashboard.
+  if (logins.some(l => l.menus === undefined)) {
+    const staffMenus = apps.filter(a => a.url !== DASHBOARD_URL).map(a => a.id)
+    for (const l of logins) if (l.menus === undefined) l.menus = OWNERS.includes(l.email) || !/^(HES|HMD)-[A-Z]{3}\b/.test(l.note) ? "*" : staffMenus
+    await store.set("logins", logins); console.log("[hub] migrated logins -> per-email menus")
+  }
   return { apps, staff, logins, log }
 }
 
@@ -218,11 +228,17 @@ async function applyOp(a: any, by: string): Promise<void> {
       const cur = d.logins.find(x => x.email === email)
       const active = a.active !== false
       if (!active && OWNERS.includes(email)) throw new Error("ปิดสิทธิ์เจ้าของระบบไม่ได้")
+      const appIds = new Set(d.apps.map(x => x.id))
+      let menus: "*" | number[] = a.menus === "*" || OWNERS.includes(email) ? "*"
+        : [...new Set((Array.isArray(a.menus) ? a.menus : []).map(Number).filter(x => appIds.has(x)))]
+      if (a.menus === undefined && cur) menus = cur.menus           // toggling on/off keeps the menus
+      if (menus !== "*" && !menus.length) throw new Error("เลือกอย่างน้อย 1 เมนู")
+      const label = menus === "*" ? "ทุกเมนู" : menus.map(id => d.apps.find(x => x.id === id)?.name).join(", ")
       if (cur) {
-        const was = cur.active; Object.assign(cur, { note, active })
-        log(was && !active ? "ปิดสิทธิ์อีเมล" : !was && active ? "เปิดสิทธิ์อีเมล" : "แก้ไขอีเมล", email)
+        const was = cur.active; Object.assign(cur, { note, active, menus })
+        log(was && !active ? "ปิดสิทธิ์อีเมล" : !was && active ? "เปิดสิทธิ์อีเมล" : "แก้ไขอีเมล", email + " · " + label)
       } else {
-        d.logins.push({ id: Math.max(0, ...d.logins.map(x => x.id)) + 1, email, note, active: true }); log("เพิ่มอีเมลเข้าใช้งาน", email)
+        d.logins.push({ id: Math.max(0, ...d.logins.map(x => x.id)) + 1, email, note, active: true, menus }); log("เพิ่มอีเมลเข้าใช้งาน", email + " · " + label)
       }
       await store.set("logins", d.logins); break
     }
@@ -254,8 +270,12 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false })
       const d = await loadAll()
       const isOwner = OWNERS.includes(email)
-      const canDashboard = isOwner || d.logins.some(l => l.active && l.email === email)
-      return json({ ok: true, email, isOwner, canDashboard })
+      const login = d.logins.find(l => l.active && l.email === email)
+      const ids = isOwner || login?.menus === "*" ? d.apps.map(x => x.id) : login ? login.menus as number[] : null
+      // menus: URLs this account may use (null = not listed -> the "ทุกคน" menus)
+      const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
+      const canDashboard = !!menus && menus.includes(DASHBOARD_URL)
+      return json({ ok: true, email, isOwner, canDashboard, menus })
     }
     if (p === "/api/admin/load" || p === "/api/admin/op") {
       const email = await verifyGoogle(bearer(req))
