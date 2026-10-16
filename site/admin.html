@@ -258,7 +258,7 @@ const brList = s => String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
 
 function render(){
   $('meEmail').textContent = D.me; $('meRole').textContent = 'เจ้าของระบบ';
-  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','อีเมลเข้าใช้งาน',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
+  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','อีเมลเห็นทุกเมนู',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
   $('tabs').innerHTML = T.map(([k,l,n])=>'<button class="tab'+(tab===k?' on':'')+'" data-tab="'+k+'">'+l+(n!==''?'<span>'+n+'</span>':'')+'</button>').join('');
   $('view').innerHTML = tab==='apps'?viewApps():tab==='logins'?viewLogins():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
 }
@@ -339,7 +339,8 @@ function viewLog(){
 function viewLogins(){
   const owners = D.owners || [D.owner];
   return '<section class="card">'+
-    '<p class="hint" style="margin-bottom:12px">อีเมล Google ที่ล็อกอินที่หน้าแรกแล้ว <b>เห็นทุกเมนู</b> รวม Checklist Report Dashboard · อีเมลอื่น (เช่น อีเมลสาขา) เห็นเฉพาะเมนูพนักงาน · หน้าตั้งค่า ⚙️ เข้าได้เฉพาะเจ้าของระบบ</p>'+
+    '<p class="note"><b>ใส่เฉพาะคนที่ให้ดู Dashboard ได้</b> — อีเมลในรายการนี้ล็อกอินแล้วเห็นทุกเมนู รวม Checklist Report Dashboard (คะแนนของทุกสาขา)<br>'+
+    'อีเมลสาขา/พนักงานทั่วไป <b>ไม่ต้องใส่</b> — ล็อกอินด้วย Google ได้อยู่แล้ว และจะเห็นเฉพาะเมนูพนักงาน (Checklist, Service Case) · หน้าตั้งค่า ⚙️ เข้าได้เฉพาะเจ้าของระบบ</p>'+
     '<div class="bar"><span class="grow"></span><button class="btn" data-act="lgNew">+ เพิ่มอีเมล</button></div>'+
     (addLogin?'<div class="editor"><div class="grid2" style="margin-top:0"><label class="l">อีเมล<input class="f" id="elEmail" type="email" placeholder="name@gmail.com"></label><label class="l">ชื่อ / หมายเหตุ<input class="f" id="elNote" placeholder="เช่น สมชาย (ชาย) · HOHW"></label></div><div class="acts"><button class="btn sec" data-act="lgCancel">ยกเลิก</button><button class="btn" data-act="lgSave">เพิ่ม</button></div></div>':'')+
     '<ul class="rows">'+D.logins.map(l=>{
