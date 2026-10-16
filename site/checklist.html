@@ -481,7 +481,8 @@ inspectorSel.addEventListener('change', ()=>{
   saveDraft();
 });
 inspectorOther.addEventListener('change', ()=>{ try{ localStorage.setItem('checklist-inspector', inspectorName()); }catch(e){} });
-try{ setInspector(localStorage.getItem('checklist-inspector') || ''); }catch(e){}
+// Only restore a remembered name that is still on the team list (people who left are dropped).
+try{ const last = localStorage.getItem('checklist-inspector') || ''; if((window.HUB_TEAM || []).includes(last)) setInspector(last); }catch(e){}
 
 const branchSel = document.getElementById('branch');
 BRANCHES.forEach(b=>{

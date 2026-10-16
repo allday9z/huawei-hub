@@ -431,7 +431,11 @@ function renderPin(msg){
 let staffSeq = 0;
 function loadStaff(){
   const sel = $('staff');
-  if(!ENDPOINT){ fillSelect(sel,STAFF,settings.staff,'เลือกชื่อ'); return; }
+  if(!ENDPOINT){
+    // คนที่ถูกนำออกจากรายชื่อ (เช่น ลาออก) — ล้างชื่อที่เครื่องจำไว้ ให้เลือกใหม่
+    if(settings.staff && !STAFF.includes(settings.staff)){ settings.staff=''; saveSettings(); }
+    fillSelect(sel,STAFF,settings.staff,'เลือกชื่อ'); return;
+  }
   if(!settings.branch){ fillSelect(sel,[],'','เลือกสาขาก่อน'); return; }
   fillSelect(sel,settings.staff?[settings.staff]:[],settings.staff,'กำลังโหลดรายชื่อ…');
   const branch = settings.branch;
