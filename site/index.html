@@ -548,7 +548,7 @@ function applyAccess(p, d){
   user = {email: d.email, name: (p && p.name) || d.email, picture: (p && p.picture) || '', isOwner: !!d.isOwner, canDashboard: !!d.canDashboard, menus: Array.isArray(d.menus) ? d.menus : []};
   const wasGate = !$('gate').hidden && !changingBranch;
   store.set('hub_user', user); if(!changingBranch) $('gate').hidden = true; renderAcct(); render(); checkReminders();
-  if(wasGate && !QS.has('switch')) goNext();   // เพิ่งเข้าสู่ระบบ: กลับไปหน้าที่ตั้งใจจะเปิด
+  if((wasGate || QS.has('relogin')) && !QS.has('switch')) goNext();   // เพิ่งเข้าสู่ระบบ / เชื่อมบัญชีใหม่: กลับไปหน้าที่ตั้งใจจะเปิด
 }
 function deny(email){
   const keep = email;
@@ -578,6 +578,7 @@ async function recheck(token){
 }
 function signOutHub(silent){
   user = null;
+  try{ fetch('/api/hub/logout', {method:'POST', credentials:'same-origin', keepalive:true}); }catch(e){}
   try{ localStorage.removeItem('hub_user'); localStorage.removeItem(TOKEN_KEY); }catch(e){}
   try{ window.google && google.accounts && google.accounts.id.disableAutoSelect(); }catch(e){}
   renderAcct(); render();

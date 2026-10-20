@@ -132,8 +132,8 @@ select.empty{border-color:var(--red);background-color:var(--red-t)}
   <!-- ยังไม่ได้เข้าสาขา -->
   <section class="gate" id="gate" hidden>
     <h2>เข้าสู่ระบบสาขาก่อน</h2>
-    <p>ใช้บัญชีอีเมลร้านและรหัสสาขา<br>เข้าครั้งเดียวใช้ได้ทั้งวัน</p>
-    <a class="btn red" style="display:inline-block;text-decoration:none" href="/login?next=/st-report">ไปหน้าเข้าสู่ระบบ</a>
+    <p>เลือกสาขาของเครื่องนี้ก่อน<br>(บัญชีทุกสาขา เลือกจากรายการด้านล่างได้)</p>
+    <a class="btn red" style="display:inline-block;text-decoration:none" href="/?switch=branch&amp;next=/st-report">เลือกสาขา</a>
     <div id="demoPick" hidden style="margin-top:16px">
       <select id="demoBranch"></select>
     </div>
@@ -205,6 +205,11 @@ select.empty{border-color:var(--red);background-color:var(--red-t)}
 <script>
 /* ===== ตั้งค่า ===== */
 const ENDPOINT = ''; // URL Web App เดียวกับหน้า /case-log
+// ไม่มี ENDPOINT: รายการ/รายงานเก็บในระบบ HUAWEI Hub แยกตามสาขา/วัน (ทุกเครื่องของสาขาเห็นยอดเดียวกัน)
+const HUB_API = ENDPOINT ? '' : '/api/rec/st';
+const RELOGIN = '/?relogin=1&next=' + encodeURIComponent(location.pathname);
+let hubState = '';   // '' | 'ok' | 'auth' | 'error'
+let lockedBranch = false;   // สาขามาจากที่เลือกตอนเข้าสู่ระบบ (เปลี่ยนที่ ⚙️ ตั้งค่า)
 const ROUND1_END = '15:00';
 const ROUND_LABEL = {1:'รอบ 1 10:00 - 15:00', 2:'รอบ 2 10:00 - 22:00'};
 const SERVICE_FORM  = 'https://forms.gle/xgjoTrt9ho1vnFZ37';  // ใส่ '' ถ้าไม่ต้องการให้แสดงลิงก์ในข้อความ
@@ -384,9 +389,10 @@ function render(){
   // ยังไม่ได้เข้าสาขาวันนี้ -> ไปหน้าเข้าสู่ระบบกลาง (/login)
   if(ENDPOINT && !verified() && window.HUB_SWITCH){ (settings.session ? HUB_SWITCH : HUB_LOGOUT)(); return; }
   const ok = !ENDPOINT || verified();
-  $('demo').hidden = !!ENDPOINT;
+  $('demo').hidden = !!ENDPOINT || (!!HUB_API && hubState!=='auth');
+  if(HUB_API && hubState==='auth') $('demo').innerHTML = 'ยังไม่ได้เชื่อมบัญชีกับระบบ — <a href="'+RELOGIN+'">แตะเพื่อเข้าสู่ระบบอีกครั้ง</a> (รายการที่กดไว้อยู่ในเครื่อง ไม่หาย)';
   $('gate').hidden = ok && !!settings.branch;
-  $('demoPick').hidden = !!ENDPOINT;
+  $('demoPick').hidden = !!ENDPOINT || lockedBranch;
   $('app').hidden = !(ok && settings.branch);
   $('bar').hidden = $('app').hidden;
   if($('app').hidden) return;
@@ -418,7 +424,7 @@ function render(){
 
   $('counters').innerHTML = COUNTERS.map(c=>{
     const manual = sumOf(list,c.k), auto = c.auto ? serviceAuto() : 0, n = manual+auto;
-    const note = c.auto ? (ENDPOINT ? 'นับจาก Fail Case Service '+auto+' ราย'+(manual?' + เพิ่มเอง '+manual:'')+' · <a href="/case-log">บันทึกเคส</a>' : 'ต่อ Sheet แล้วจะนับจาก Fail Case Service ให้เอง')
+    const note = c.auto ? (ENDPOINT || HUB_API ? 'นับจาก Service Case '+auto+' ราย'+(manual?' + เพิ่มเอง '+manual:'')+' · <a href="/case-log">บันทึกเคส</a>' : 'ต่อ Sheet แล้วจะนับจาก Fail Case Service ให้เอง')
              : c.form ? '<a href="'+esc(c.form)+'" target="_blank" rel="noopener">บันทึกรายละเอียดในฟอร์ม</a>' : '';
     const lines = c.pick ? modelLines(list,c.k) : [];
     return '<div class="box'+(c.auto?' auto':'')+'"><div class="h"><span class="ic">'+svg(c.k)+'</span>'+c.name+'</div>'+
@@ -526,7 +532,7 @@ function openShare(){
   if(round===1 && hm(new Date()) < ROUND1_END) toast('ยังไม่ถึง 15:00 ตัวเลขจะนับถึงตอนนี้');
   shareText = report();
   $('shareTitle').textContent = 'รายงาน'+ROUND_LABEL[round].replace(/^รอบ (\d).*/,' รอบ $1');
-  $('shareSub').textContent = ENDPOINT ? 'กดคัดลอกหรือส่งเข้า LINE ระบบจะบันทึกรายงานรอบนี้ลงชีตให้ด้วย' : 'โหมดทดลอง: ยังไม่บันทึกลงชีต';
+  $('shareSub').textContent = ENDPOINT ? 'กดคัดลอกหรือส่งเข้า LINE ระบบจะบันทึกรายงานรอบนี้ลงชีตให้ด้วย' : HUB_API ? 'กดคัดลอกหรือส่งเข้า LINE ระบบจะบันทึกรายงานรอบนี้ไว้ใน HUAWEI Hub ให้ด้วย' : 'โหมดทดลอง: ยังไม่บันทึกลงชีต';
   $('shareText').textContent = shareText; $('share').hidden=false;
 }
 let reportQueue = store.get('st_reports', []);
@@ -563,7 +569,46 @@ function jsonp(params, ok, fail){
   s.src=ENDPOINT+(ENDPOINT.includes('?')?'&':'?')+new URLSearchParams(Object.assign({callback:cb},params));
   document.body.appendChild(s);
 }
+// HUAWEI Hub: ยอดของสาขาวันนี้จากทุกเครื่อง + รอบที่ส่งแล้ว + จำนวนลูกค้าจากหน้า Service Case
+function hubLoad(){
+  if(!settings.branch) return;
+  const branch = settings.branch, day = today();
+  fetch(HUB_API+'?branch='+encodeURIComponent(branch)+'&date='+day, {cache:'no-store', credentials:'same-origin'})
+    .then(r=>r.json().catch(()=>null).then(d=>({s:r.status, d})))
+    .then(({s,d})=>{
+      if(branch!==settings.branch) return;
+      if(d && d.ok){
+        hubState = 'ok';
+        remote = (d.st||[]).map(e=>Object.assign(e,{date:day}));
+        sentRemote = d.stSent || {};
+        svcCases = (d.cases||[]).map(c=>c.time||'').filter(Boolean);
+        sync();
+      } else hubState = (s===401||s===403) ? 'auth' : 'error';
+      render();
+    }).catch(()=>{ hubState='error'; render(); });
+}
+async function hubSync(){
+  if(!settings.branch || syncing) return;
+  if(!pending.length && !deletes.length && !reportQueue.length) return;
+  syncing = true;
+  const sent = {e:pending.slice(), d:deletes.slice(), r:reportQueue.slice()};
+  try{
+    const r = await fetch(HUB_API, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({branch:settings.branch, date:today(), st:{entries:sent.e, deletes:sent.d, reports:sent.r}})});
+    const res = await r.json().catch(()=>null);
+    if(r.ok && res && res.ok && res.st){
+      hubState = 'ok';
+      const okE = new Set(res.st.accepted||[]), okD = new Set(res.st.deleted||[]), okR = new Set(res.st.reports||[]);
+      remote = remote.concat(pending.filter(e=>okE.has(e.id))).filter(e=>!okD.has(e.id));
+      pending = pending.filter(e=>!okE.has(e.id)); deletes = deletes.filter(id=>!okD.has(id));
+      reportQueue = reportQueue.filter(x=>!okR.has(x.key)); store.set('st_reports', reportQueue);
+      persist(); render();
+    } else if(r.status===401 || r.status===403){ hubState = 'auth'; render(); }
+  }catch(e){}
+  syncing = false;
+}
 function load(){
+  if(!ENDPOINT && HUB_API) return hubLoad();
   if(!ENDPOINT || !verified()) return;
   jsonp({action:'today', session:settings.session, branch:settings.branch, date:today()}, res=>{
     if(!res || !res.ok){ if(res && (res.error==='auth'||res.error==='locked')){ settings.unlocked=null; render(); } return; }
@@ -576,6 +621,7 @@ function load(){
 }
 let syncing = false;
 async function sync(){
+  if(!ENDPOINT && HUB_API) return hubSync();
   if(!ENDPOINT || !verified() || syncing) return;
   if(!pending.length && !deletes.length && !reportQueue.length) return;
   syncing = true;
@@ -632,11 +678,11 @@ $('shareLine').onclick=()=>{ queueReport(); copy(shareText); location.href='http
 ['pick','share'].forEach(id=>$(id).addEventListener('click',e=>{ if(e.target.id===id) $(id).hidden=true; }));
 
 // สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้ (เหมือน Service Case)
-try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb) && hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } }catch(e){}
+try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb)){ lockedBranch = true; if(hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } } }catch(e){}
 // โหมดทดลอง: เลือกสาขาเอง
 if(!ENDPOINT){
-  $('demoBranch').innerHTML='<option value="">เลือกสาขา (ทดลอง)</option>'+BRANCHES.map(b=>'<option'+(b===settings.branch?' selected':'')+'>'+b+'</option>').join('');
-  $('demoBranch').onchange=e=>{ settings.branch=e.target.value; saveSettings(); render(); };
+  $('demoBranch').innerHTML='<option value="">เลือกสาขา</option>'+BRANCHES.map(b=>'<option'+(b===settings.branch?' selected':'')+'>'+b+'</option>').join('');
+  $('demoBranch').onchange=e=>{ settings.branch=e.target.value; saveSettings(); remote=[]; sentRemote={}; svcCases=[]; render(); load(); };
 }
 
 render(); load(); sync();

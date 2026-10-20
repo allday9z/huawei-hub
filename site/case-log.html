@@ -228,6 +228,9 @@ function ico(n,s,c){var P={"smartphone": "<rect width=\"14\" height=\"20\" x=\"5
 <script>
 /* ===== ตั้งค่า ===== */
 const ENDPOINT = ''; // วาง URL Web App จาก Google Apps Script ตรงนี้
+// ไม่มี ENDPOINT: เคสเก็บในระบบ HUAWEI Hub แยกตามสาขา/วัน (ทุกเครื่องของสาขาเห็นรายการเดียวกัน) — ใช้บัญชีที่เข้าสู่ระบบหน้าแรก
+const HUB_API = ENDPOINT ? '' : '/api/rec/case';
+const RELOGIN = '/?relogin=1&next=' + encodeURIComponent(location.pathname);
 
 const BRANCHES = ['HES-TMN','HMD-HKT','HMD-CCS','HMD-CWN','HES-KBI','HMD-EMQ','HMD-MVH','HMD-KKC','HMD-CNV'];
 
@@ -511,13 +514,14 @@ function renderLog(){
 
   $('logTitle').innerHTML = (svcDate===ymd(new Date())?'เคสวันนี้':'เคสวันที่ '+thDate(svcDate))+(settings.branch?' <span class="br">'+esc(settings.branch)+'</span>':'');
   $('logSub').textContent = !ok_ ? ''
-    : !ENDPOINT ? 'โหมดทดลอง: แสดงเฉพาะเคสที่บันทึกจากเครื่องนี้'
+    : !ENDPOINT && !HUB_API ? 'โหมดทดลอง: แสดงเฉพาะเคสที่บันทึกจากเครื่องนี้'
+    : remoteState==='auth' ? 'ต้องเข้าสู่ระบบอีกครั้งก่อน เคสที่บันทึกจะเก็บไว้ในเครื่องแล้วส่งให้ทีหลัง'
     : remoteState==='loading' ? 'กำลังโหลดเคสของสาขา…'
     : remoteState==='error' ? 'โหลดเคสจากทั้งสาขาไม่ได้ ตอนนี้แสดงเฉพาะเคสในเครื่องนี้'
     : 'เคสจากทุกเครื่องของสาขานี้ · อัปเดต '+hm(new Date());
 
   $('log').innerHTML = !settings.branch ? '<li class="empty-log">เลือกสาขาก่อน เพื่อดูเคสวันนี้</li>'
-  : !ok_ ? '<li class="empty-log">ใส่รหัสสาขาก่อน เพื่อดูเคสของสาขา</li>'
+  : !ok_ ? '<li class="empty-log">'+(ENDPOINT ? 'ใส่รหัสสาขาก่อน เพื่อดูเคสของสาขา' : 'เลือกชื่อผู้บันทึกก่อน เพื่อดูเคสของสาขา')+'</li>'
   : items.length ? items.map(c =>
     '<li'+(editing&&editing.id===c.id?' class="cur"':'')+'><span class="t">'+esc(c.time||'')+'</span><div class="d">'+
       '<div class="who">'+esc(c.branch)+' · <b>'+esc(nick(c.staff))+'</b>'+(c.staff===settings.staff?' <span class="me">ฉัน</span>':'')+'</div>'+
@@ -536,13 +540,50 @@ function renderLog(){
   : '<li class="empty-log">สาขานี้ยังไม่มีเคส'+(svcDate===ymd(new Date())?'วันนี้':'ในวันที่เลือก')+'</li>';
 
   const pending = log.filter(c=>!c.sent).length + edits.filter(e=>!e.sent).length;
-  $('syncBtn').hidden = !(ENDPOINT && pending);
+  $('syncBtn').hidden = !((ENDPOINT || HUB_API) && pending);
+  // บัญชีบนเครื่องนี้ยังไม่ได้เชื่อมกับระบบ (เช่น เพิ่งอัปเดต) → ให้เข้าสู่ระบบอีกครั้งที่หน้าแรก
+  $('demo').hidden = !!ENDPOINT || (!!HUB_API && remoteState!=='auth');
+  if(HUB_API && remoteState==='auth') $('demo').innerHTML = 'ยังไม่ได้เชื่อมบัญชีกับระบบ — <a href="'+RELOGIN+'">แตะเพื่อเข้าสู่ระบบอีกครั้ง</a> (เคสที่บันทึกไว้ในเครื่องไม่หาย)';
   $('syncBtn').textContent = 'ส่งที่ค้างอยู่ ('+pending+')';
+}
+
+/* ดึงเคสของสาขาในวันที่เลือกจาก HUAWEI Hub */
+function hubLoad(){
+  const branch = settings.branch, day = svcDate;
+  if(!branch) return;
+  const seq = ++loadSeq;
+  if(remoteKey !== branch+'|'+day){ remoteState='loading'; renderLog(); }
+  fetch(HUB_API+'?branch='+encodeURIComponent(branch)+'&date='+day, {cache:'no-store', credentials:'same-origin'})
+    .then(r=>r.json().catch(()=>null).then(d=>({s:r.status, d})))
+    .then(({s,d})=>{
+      if(seq!==loadSeq || branch!==settings.branch || day!==svcDate) return;
+      if(d && d.ok){ remote = d.cases||[]; remoteKey = branch+'|'+day; remoteState='ok'; }
+      else remoteState = (s===401||s===403) ? 'auth' : 'error';
+      renderLog(); if(remoteState==='ok') sync();
+    }).catch(()=>{ if(seq===loadSeq){ remoteState='error'; renderLog(); } });
+}
+async function hubSync(){
+  const pc = log.filter(c=>!c.sent), pe = edits.filter(c=>!c.sent);
+  if((!pc.length && !pe.length) || syncing) return;
+  syncing = true;
+  try{
+    const r = await fetch(HUB_API, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cases: pc.map(({sent,pin,geo,...rest})=>rest), updates: pe.map(({sent,pin,...rest})=>rest)})});
+    const d = await r.json().catch(()=>null);
+    if(r.ok && d && d.ok){
+      const okC = new Set(d.accepted||[]), okU = new Set(d.updated||[]);
+      pc.forEach(c=>{ if(okC.has(c.id)) c.sent=true; }); pe.forEach(e=>{ if(okU.has(e.id)) e.sent=true; }); persist();
+      syncing = false; hubLoad(); return;
+    }
+    if(r.status===401 || r.status===403) remoteState='auth';
+  }catch(err){}
+  syncing = false; renderLog();
 }
 
 /* ดึงเคสของสาขาในวันที่เลือกจาก Sheet (ต้องยืนยันรหัสส่วนตัวก่อน) */
 let loadSeq = 0;
 function loadBranch(tryPin){
+  if(!ENDPOINT && HUB_API) return hubLoad();
   const branch = settings.branch, staff = settings.staff;
   const pin = tryPin || (verified() ? myPin() : '');
   if(!ENDPOINT || !branch || !staff || !pin) return;
@@ -590,7 +631,7 @@ document.addEventListener('click',e=>{
       if(confirm('ลบเคสนี้?')){ log=log.filter(x=>x.id!==c.id); persist(); renderLog(); }
     }else{
       cases = [fromItem(c)];
-      editing = act==='edit' ? {id:c.id, time:c.time, staff:c.staff, branch:c.branch} : null;
+      editing = act==='edit' ? {id:c.id, time:c.time, staff:c.staff, branch:c.branch, date:c.date} : null;
       renderCase(); renderLog(); window.scrollTo({top:0,behavior:'smooth'});
       toast(act==='edit' ? 'แก้ไขแล้วกด "บันทึกการแก้ไข"' : 'ดึงเคสเดิมมาแล้ว แก้แล้วกดบันทึกได้เลย');
     }
@@ -659,7 +700,7 @@ function save(){
     }else{
       if(own) Object.assign(own, fields);
       edits = edits.filter(x=>!(x.id===editing.id && !x.sent));
-      edits.push({id:editing.id, branch:editing.branch, pin:myPin(), fields,
+      edits.push({id:editing.id, branch:editing.branch, date:editing.date, pin:myPin(), fields,
                   editedBy:settings.staff, editedAt:now.toISOString(), sent:false});
       const r = remote.find(x=>x.id===editing.id); if(r) Object.assign(r, fields, {editedBy:settings.staff});
     }
@@ -686,6 +727,7 @@ function save(){
 
 let syncing = false;
 async function sync(){
+  if(!ENDPOINT && HUB_API) return hubSync();
   const pc = log.filter(c=>!c.sent), pe = edits.filter(c=>!c.sent);
   if(!ENDPOINT || (!pc.length && !pe.length) || syncing) return;
   syncing = true;
@@ -709,10 +751,12 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadBran
 
 /* ===== Init ===== */
 $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-$('demo').hidden = !!ENDPOINT;
-// สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้
-try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb) && hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } }catch(e){}
+$('demo').hidden = !!ENDPOINT || !!HUB_API;
+// สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้ — ล็อกไว้ (เปลี่ยนได้ที่ ⚙️ ตั้งค่า > เปลี่ยนสาขา)
+let lockedBranch = false;
+try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb)){ lockedBranch = true; if(hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } } }catch(e){}
 fillSelect($('branch'),BRANCHES,settings.branch,'เลือกสาขา');
+if(lockedBranch){ $('branch').disabled = true; $('branch').title = 'สาขาของเครื่องนี้ — เปลี่ยนได้ที่ ⚙️ ตั้งค่า > เปลี่ยนสาขา'; }
 loadStaff();
 setDate(svcDate);
 renderPin(); renderGeo(); renderCase(); renderLog(); sync(); loadBranch(); askGeo();

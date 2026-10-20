@@ -128,9 +128,24 @@
       '<div class="row static"><span class="ic">' + svg('user') + '</span><span class="tx"><b>' + esc(u.email || '-') + '</b>' +
       '<small>สาขา ' + esc(branch()) + (rec ? ' · ' + esc(rec) : '') + (u.isOwner ? ' · เจ้าของระบบ' : u.canDashboard ? ' · ผู้ดูแล' : '') + '</small></span></div>' +
       '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>' +
+      (u.isOwner || u.canDashboard ? '<button class="row" type="button" data-a="xlsx"><span class="ic">' + svg('file') + '</span><span class="tx"><b>ดาวน์โหลดรายงาน (Excel)</b><small>Service Case · ST Report ย้อนหลัง แยกตามสาขา</small></span><span class="chev">›</span></button>' : '') +
       (u.isOwner ? '<a class="row" href="/admin"><span class="ic">' + svg('sliders') + '</span><span class="tx"><b>จัดการพอร์ทัล</b><small>เมนู · รายชื่อทีม · สิทธิ์อีเมล (เฉพาะผู้ดูแล)</small></span><span class="chev">›</span></a>' : '') +
       '<button class="row red" type="button" data-a="out"><span class="ic">' + svg('logout') + '</span><span class="tx"><b>ออกจากระบบ</b></span><span class="chev">›</span></button>' +
       '</div>';
+  }
+
+  // Excel (owner / Dashboard accounts): Service Case + ST Report saved in the hub, by date range and branch.
+  var BRANCH_CODES = ['HES-TMN', 'HES-KBI', 'HMD-HKT', 'HMD-CCS', 'HMD-CWN', 'HMD-EMQ', 'HMD-MVH', 'HMD-KKC', 'HMD-CNV'];
+  function exportHtml() {
+    var d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    var field = 'box-sizing:border-box;min-width:0;width:100%;margin:4px 0 12px;padding:11px 12px;border:1px solid #E6E6EB;border-radius:12px;font:inherit;background:#fff';
+    return '<h3>ดาวน์โหลดรายงาน (Excel)</h3><div class="list" style="padding:14px 14px 4px">' +
+      '<label class="lab" style="margin:0">ข้อมูล</label><select id="hubXApp" style="' + field + '"><option value="all">Service Case + ST Report</option><option value="case">Service Case</option><option value="st">ST Report</option></select>' +
+      '<label class="lab" style="margin:0">สาขา</label><select id="hubXBranch" style="' + field + '"><option value="">ทุกสาขา</option>' + BRANCH_CODES.map(function (b) { return '<option>' + b + '</option>'; }).join('') + '</select>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="lab" style="margin:0">ตั้งแต่</label><input type="date" id="hubXFrom" value="' + d.slice(0, 8) + '01" style="' + field + '"></div>' +
+      '<div><label class="lab" style="margin:0">ถึง</label><input type="date" id="hubXTo" value="' + d + '" style="' + field + '"></div></div></div>' +
+      '<div class="gap"></div><button class="row" type="button" data-a="xlsx-go" style="justify-content:center;background:#C7000B;color:#fff;border-radius:16px;font-weight:700">ดาวน์โหลด .xlsx</button>' +
+      '<p class="lab" id="hubXMsg" style="margin:10px 6px 0"></p>';
   }
 
   // Change branch: the portal page has the branch picker; elsewhere go there and come back.
@@ -141,6 +156,7 @@
   }
   function logout() {
     close();
+    try { fetch('/api/hub/logout', { method: 'POST', credentials: 'same-origin', keepalive: true }); } catch (e) {}
     if (typeof window.signOutHub === 'function') return window.signOutHub();
     try { localStorage.removeItem('hub_user'); localStorage.removeItem(TOKEN_KEY); } catch (e) {}
     location.href = '/';
@@ -161,12 +177,19 @@
     if (!a) return;
     if (a.dataset.a === 'branch') switchBranch();
     else if (a.dataset.a === 'out') logout();
+    else if (a.dataset.a === 'xlsx') open(exportHtml(), 'set');
+    else if (a.dataset.a === 'xlsx-go') {
+      var q = function (id) { return document.getElementById(id).value; };
+      if (!q('hubXFrom') || !q('hubXTo') || q('hubXFrom') > q('hubXTo')) { document.getElementById('hubXMsg').textContent = 'เลือกช่วงวันที่ให้ถูกต้อง'; return; }
+      document.getElementById('hubXMsg').textContent = 'กำลังสร้างไฟล์… (ถ้าไม่ดาวน์โหลด ให้เข้าสู่ระบบที่หน้าแรกอีกครั้ง)';
+      location.href = '/api/rec/export.xlsx?' + ['app=' + q('hubXApp'), 'branch=' + encodeURIComponent(q('hubXBranch')), 'from=' + q('hubXFrom'), 'to=' + q('hubXTo')].join('&');
+    }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheet.hidden) close(); });
 
   // Shown only to a signed-in account (and not over the portal's sign-in screen).
   function refresh() {
-    var gate = document.getElementById('gate');
+    var gate = tab === 'home' ? document.getElementById('gate') : null;   // the portal's sign-in screen
     var show = !!user() && !(gate && !gate.hidden);
     if (nav.hidden === !show) return;
     nav.hidden = !show;

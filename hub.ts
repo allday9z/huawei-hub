@@ -6,6 +6,7 @@
 // by a Google Sign-In ID token verified with Google (same OAuth client as the
 // Report Dashboard and the home page).
 import { SQL } from "bun"
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com"
 const OWNERS = (process.env.HUB_OWNER_EMAILS ?? "benyapakamonphan@gmail.com")
@@ -32,7 +33,7 @@ export const BRANCHES: { code: string; name: string }[] = [
   { code: "HMD-MVH", name: "Market Village HuaHin" }, { code: "HMD-KKC", name: "Central Khonkaen Campus" },
   { code: "HMD-CNV", name: "Central Northville" },
 ]
-const BRANCH_CODES = new Set(BRANCHES.map(b => b.code))
+export const BRANCH_CODES = new Set(BRANCHES.map(b => b.code))
 const MOMENTS = ["เปิดร้าน", "ระหว่างวัน", "ปิดร้าน", "รายงาน"]
 const ICON_KEYS = ["checklist", "tool", "chart", "moon", "box", "receipt", "calendar", "users", "phone", "megaphone", "file", "link"]
 
@@ -69,7 +70,7 @@ const SEED_STAFF: [string, string][] = [
 ]
 
 /* ---------------- storage (key/value JSON) ---------------- */
-interface Store { get(key: string): Promise<any>; set(key: string, value: any): Promise<void>; kind: string }
+export interface Store { get(key: string): Promise<any>; set(key: string, value: any): Promise<void>; list(prefix: string): Promise<{ key: string; value: any }[]>; kind: string }
 
 function fileStore(): Store {
   return {
@@ -79,12 +80,17 @@ function fileStore(): Store {
       const f = Bun.file(FILE_STORE); const all = (await f.exists()) ? await f.json() : {}
       all[key] = value; await Bun.write(FILE_STORE, JSON.stringify(all))
     },
+    async list(prefix) {
+      const f = Bun.file(FILE_STORE); const all = (await f.exists()) ? await f.json() : {}
+      return Object.keys(all).filter(k => k.startsWith(prefix)).sort().map(k => ({ key: k, value: all[k] }))
+    },
   }
 }
 function pgStore(url: string): Store {
-  const sql = new SQL(url)
+  const sql = new SQL(url, { max: Number(process.env.HUB_PG_MAX ?? 10) })   // HUB_PG_MAX=1 for single-connection test databases
   let ready: Promise<unknown> | null = null
   const init = () => (ready ??= sql`CREATE TABLE IF NOT EXISTS huawei_hub_kv (key text PRIMARY KEY, value jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)
+  const decode = (text: string) => { let v: any = JSON.parse(text); while (typeof v === "string") v = JSON.parse(v); return v }
   return {
     kind: "postgres",
     async get(key) {
@@ -93,9 +99,13 @@ function pgStore(url: string): Store {
       if (!rows.length) return null
       // The driver may bind the JSON text as a json value itself, which stores a JSON
       // *string* — decode until we get the real value (works for both forms).
-      let v: any = JSON.parse(rows[0].value)
-      while (typeof v === "string") v = JSON.parse(v)
-      return v
+      return decode(rows[0].value)
+    },
+    async list(prefix) {
+      await init()
+      const like = prefix.replace(/[\\%_]/g, m => "\\" + m) + "%"
+      const rows = await sql`SELECT key, value::text AS value FROM huawei_hub_kv WHERE key LIKE ${like} ORDER BY key`
+      return rows.map((r: any) => ({ key: r.key, value: decode(r.value) }))
     },
     async set(key, value) {
       await init()
@@ -104,15 +114,15 @@ function pgStore(url: string): Store {
     },
   }
 }
-const store: Store = process.env.DATABASE_URL ? pgStore(process.env.DATABASE_URL) : fileStore()
+export const store: Store = process.env.DATABASE_URL ? pgStore(process.env.DATABASE_URL) : fileStore()
 
 // One writer at a time (read-modify-write of whole collections).
 let chain: Promise<unknown> = Promise.resolve()
-function locked<T>(fn: () => Promise<T>): Promise<T> {
+export function locked<T>(fn: () => Promise<T>): Promise<T> {
   const run = chain.then(fn, fn); chain = run.catch(() => {}); return run
 }
 
-async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]; log: LogEntry[] }> {
+export async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]; log: LogEntry[] }> {
   let apps = await store.get("apps") as App[] | null
   let staff = await store.get("staff") as Staff[] | null
   const log = (await store.get("log") as LogEntry[] | null) ?? []
@@ -183,12 +193,53 @@ async function verifyGoogle(token: string): Promise<string | null> {
 }
 const bearer = (req: Request) => (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim()
 
+/* ---------------- device session (cookie) ----------------
+   Google ID tokens last 1 hour, but staff keep Service Case / ST Report open all day. After the portal
+   verifies the Google token (whoami), the device gets a signed cookie (30 days) that the record APIs
+   (/api/rec/*) accept. Access is re-checked on every call (an email switched off on ⚙️ stops working). */
+const SESSION_COOKIE = "hub_sess", SESSION_DAYS = 30
+let sessionKey: string | null = process.env.HUB_SESSION_SECRET || null
+async function secret(): Promise<string> {
+  if (sessionKey) return sessionKey
+  let s = await store.get("session_secret")
+  if (typeof s !== "string" || s.length < 32) { s = randomBytes(32).toString("hex"); await store.set("session_secret", s) }
+  return (sessionKey = s)
+}
+const b64u = (s: string) => Buffer.from(s).toString("base64url")
+async function signSession(email: string): Promise<string> {
+  const body = b64u(email + "|" + (Date.now() + SESSION_DAYS * 864e5))
+  return body + "." + createHmac("sha256", await secret()).update(body).digest("base64url")
+}
+export async function sessionEmail(req: Request): Promise<string | null> {
+  const m = (req.headers.get("cookie") ?? "").match(new RegExp("(?:^|;\\s*)" + SESSION_COOKIE + "=([^;]+)"))
+  if (!m) return null
+  const [body, sig] = m[1].split(".")
+  if (!body || !sig) return null
+  const want = createHmac("sha256", await secret()).update(body).digest()
+  const got = Buffer.from(sig, "base64url")
+  if (got.length !== want.length || !timingSafeEqual(got, want)) return null
+  const [email, exp] = Buffer.from(body, "base64url").toString().split("|")
+  return Number(exp) > Date.now() && email ? email : null
+}
+function cookieHeader(value: string, maxAge: number): string {
+  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`
+}
+// What a signed-in email may do: menus = app URLs (owner = all), canDashboard, allowed = may enter.
+export async function accountAccess(email: string) {
+  const d = await loadAll()
+  const isOwner = isOwnerEmail(email)
+  const login = d.logins.find(l => l.active && canonEmail(l.email) === canonEmail(email))
+  const ids = isOwner || login?.menus === "*" ? d.apps.map(x => x.id) : login ? login.menus as number[] : null
+  const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
+  return { isOwner, menus, canDashboard: !!menus && menus.includes(DASHBOARD_URL), allowed: isOwner || !!login }
+}
+
 /* ---------------- helpers ---------------- */
-function json(data: unknown, status = 200): Response {
+export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } })
 }
 const clean = (v: unknown, max = 200) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max)
-const nowTH = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })
+export const nowTH = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })
 function normBranches(v: unknown): string {
   const list = (Array.isArray(v) ? v : String(v ?? "").split(",")).map(x => String(x).trim()).filter(Boolean)
   if (list.includes("*")) return "*"
@@ -300,15 +351,15 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       // Also used by the Report Dashboard script: it forwards the viewer's Google token and
       // asks whether that account may view (canDashboard) — one list, managed on ⚙️.
       if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false, allowed: false })
-      const d = await loadAll()
-      const isOwner = isOwnerEmail(email)
-      const login = d.logins.find(l => l.active && canonEmail(l.email) === canonEmail(email))
-      const ids = isOwner || login?.menus === "*" ? d.apps.map(x => x.id) : login ? login.menus as number[] : null
-      // menus: URLs this account may use (null = not listed -> the "ทุกคน" menus)
-      const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
-      const canDashboard = !!menus && menus.includes(DASHBOARD_URL)
-      // allowed = may enter the hub at all (owner or an active email on ⚙️ > สิทธิ์อีเมล)
-      return json({ ok: true, email, isOwner, canDashboard, menus, allowed: isOwner || !!login })
+      // menus: URLs this account may use · allowed = may enter the hub at all (owner or an active email on ⚙️ > สิทธิ์อีเมล)
+      const a = await accountAccess(email)
+      const res = json({ ok: true, email, ...a })
+      // Allowed device: (re)issue the session cookie used by the record pages.
+      if (a.allowed) res.headers.append("Set-Cookie", cookieHeader(await signSession(email), SESSION_DAYS * 86400))
+      return res
+    }
+    if (p === "/api/hub/logout" && req.method === "POST") {
+      const res = json({ ok: true }); res.headers.append("Set-Cookie", cookieHeader("", 0)); return res
     }
     if (p === "/api/admin/load" || p === "/api/admin/op") {
       const email = await verifyGoogle(bearer(req))

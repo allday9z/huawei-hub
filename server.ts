@@ -4,6 +4,7 @@
 import { stat } from "node:fs/promises"
 import { resolve, sep } from "node:path"
 import { hubRoute, initHub } from "./hub"
+import { recordsRoute } from "./records"
 
 const PORT = Number(process.env.PORT ?? 80)
 const SITE = resolve(import.meta.dir, "site")
@@ -134,6 +135,9 @@ Bun.serve({
     // ⚙️ settings: portal menu + team list (/api/hub/*, /api/admin/*, generated /team.js)
     const hub = await hubRoute(req, url)
     if (hub) return hub
+    // Service Case / ST Report records per branch + Excel export (/api/rec/*)
+    const rec = await recordsRoute(req, url)
+    if (rec) return rec
     if (url.pathname === "/api/rewrite") {
       if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || server.requestIP(req)?.address || "?"

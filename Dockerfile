@@ -1,6 +1,8 @@
 FROM oven/bun:1-alpine
 WORKDIR /app
-COPY server.ts hub.ts ./
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY server.ts hub.ts records.ts ./
 COPY site/ ./site/
 ENV PORT=80
 EXPOSE 80
