@@ -339,7 +339,7 @@ function viewLog(){
 // Who may use which menu: each listed email has "ทุกเมนู" or its own set of menus.
 // สาขาที่มีผลจริง (lock มาจากเซิร์ฟเวอร์: ตั้งเอง หรือได้จากหมายเหตุ/ชื่ออีเมล)
 function branchLabel(l){
-  if(l.lock) return '<span class="tagb" style="background:#FDECEC;color:#C7000B">🔒 สาขา '+esc(l.lock)+(l.branch?'':' (อัตโนมัติ)')+'</span>';
+  if(l.lock) return '<span class="tagb" style="background:#FDECEC;color:#C7000B">ล็อกสาขา '+esc(l.lock)+(l.branch?'':' (อัตโนมัติ)')+'</span>';
   return '<span class="tagb">เลือกสาขาเองได้</span>';
 }
 function menuLabel(l){
@@ -354,7 +354,7 @@ function loginEditor(l){
     // สาขาของอีเมลนี้: อัตโนมัติ (รหัสสาขาในหมายเหตุ / ชื่ออีเมล) · ล็อกสาขาที่เลือก · ไม่ล็อก (ทีม HOHW เลือกสาขาเอง)
     '<label class="l" style="margin-bottom:12px">สาขาของอีเมลนี้ (ล็อกตอนเข้าสู่ระบบ)<select class="f" id="elBranch">'+
       '<option value=""'+(!l.branch?' selected':'')+'>อัตโนมัติ — ตามรหัสสาขาในหมายเหตุ หรือชื่ออีเมล (เช่น hmdhktbyuficon → HMD-HKT)</option>'+
-      (D.branches||[]).map(b=>'<option value="'+b.code+'"'+(l.branch===b.code?' selected':'')+'>🔒 ล็อก '+b.code+' · '+esc(b.name)+'</option>').join('')+
+      (D.branches||[]).map(b=>'<option value="'+b.code+'"'+(l.branch===b.code?' selected':'')+'>ล็อก '+b.code+' · '+esc(b.name)+'</option>').join('')+
       '<option value="*"'+(l.branch==='*'?' selected':'')+'>ไม่ล็อก — เลือกสาขาเองตอนเข้าใช้ (ทีม HOHW)</option>'+
     '</select></label>'+
     '<div><p class="hint" style="margin-bottom:6px">ใช้เมนูไหนได้บ้าง (เลือกได้หลายเมนู)</p><div class="chips">'+
