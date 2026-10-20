@@ -125,8 +125,10 @@
   function open(html, t) { document.getElementById('hubSheetBody').innerHTML = html; sheet.hidden = false; mark(t); }
   function close() { sheet.hidden = true; mark(tab); }
 
+  // Report apps (moment "รายงาน": Checklist Report Dashboard, รายงานสาขา, …) live under แดชบอร์ด, not here (Antt, 20 Oct 2026).
+  function isReport(a) { return a.moment === 'รายงาน' || a.url === '/report-dashboard' || a.url === '/records'; }
   function toolsHtml() {
-    var u = user(), list = apps.filter(function (a) { return canSee(u, a); });
+    var u = user(), list = apps.filter(function (a) { return canSee(u, a) && !isReport(a); });
     return '<h3>เครื่องมือ</h3><div class="list">' + (list.length ? list.map(function (a) {
       var ext = /^https?:/.test(a.url);
       return '<a class="row" href="' + esc(a.url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '><span class="ic">' + svg(a.icon) + '</span>' +
@@ -142,10 +144,13 @@
       list.push({ icon: 'tool', name: 'Service Case', desc: 'เคสที่ช่วยลูกค้า สำเร็จ / ไม่สำเร็จ เรื่องที่เจอบ่อย แยกสาขา', url: '/records?view=case' });
       list.push({ icon: 'receipt', name: 'ST Report', desc: 'ยอดขายแต่ละหมวด รุ่นขายดี รอบที่ส่งรายงาน แยกสาขา', url: '/records?view=st' });
     }
+    // other report apps added on ⚙️ (moment "รายงาน") show up here too
+    apps.forEach(function (a) { if (isReport(a) && a.url !== '/report-dashboard' && a.url !== '/records' && canSee(u, a)) list.push(a); });
     var curView = path === '/records' ? (new URLSearchParams(location.search).get('view') || 'all') : '';
     return '<h3>แดชบอร์ด</h3><div class="lab">เลือกเรื่องที่ต้องการดู</div><div class="list">' + (list.length ? list.map(function (a) {
       var on = a.url === '/report-dashboard' ? path === '/report-dashboard' : a.url === '/records?view=' + curView;
-      return '<a class="row" href="' + esc(a.url) + '"><span class="ic">' + svg(a.icon) + '</span><span class="tx"><b>' + esc(a.name) + (on ? ' <small style="display:inline;color:#C7000B;font-weight:600">· กำลังดู</small>' : '') + '</b><small>' + esc(a.desc) + '</small></span><span class="chev">›</span></a>';
+      var ext = /^https?:/.test(a.url);
+      return '<a class="row" href="' + esc(a.url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '><span class="ic">' + svg(a.icon) + '</span><span class="tx"><b>' + esc(a.name) + (on ? ' <small style="display:inline;color:#C7000B;font-weight:600">· กำลังดู</small>' : '') + '</b><small>' + esc(a.desc) + '</small></span><span class="chev">›</span></a>';
     }).join('') : '<div class="empty">บัญชีนี้ยังไม่มีแดชบอร์ดที่ดูได้ — ติดต่อผู้ดูแลระบบ</div>') + '</div>';
   }
   function settingsHtml() {
