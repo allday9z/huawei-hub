@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<script src="/auth-guard.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>รายงานสาขา</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* รายงานสาขา (Antt, 20 Oct 2026): สรุป Service Case + ST Report ที่บันทึกใน HUAWEI Hub เป็นแดชบอร์ด แล้วกดออกเป็น Excel */
+:root{--bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;--red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC;--bad:#C7000B}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:'IBM Plex Sans Thai',-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif;color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(180deg,#F9E1E2 0,var(--bg) 320px) no-repeat,var(--bg)}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 40px}
+.hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:4px 4px 14px}
+.hello small{display:block;font-size:12px;font-weight:700;color:var(--red);letter-spacing:1px}
+.hello h1{font-size:24px;font-weight:700}
+.hello a{font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:12px;min-width:0}
+.card h3{font-size:15px;font-weight:700;margin-bottom:10px}
+.card h3 small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:6px}
+h2{font-size:19px;font-weight:700;margin:22px 4px 10px;display:flex;align-items:center;gap:8px}
+h2 .dot{width:10px;height:10px;border-radius:50%;background:var(--red)}
+.filt{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end}
+.filt label{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0}
+.filt input,.filt select{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;min-width:0;width:100%}
+.quick{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.quick button{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+.quick button.on{background:var(--red-t);border-color:#F3B9BC;color:var(--red);font-weight:600}
+.xl{border:0;background:var(--red);color:#fff;border-radius:14px;padding:11px 16px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.xl svg{width:18px;height:18px}
+.msg{border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:14px;background:#FFF3DC;color:#7A4A00}
+.msg a{color:inherit;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px;min-width:0}
+.kpi span{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi b{display:block;font-size:26px;font-weight:700;line-height:1.2;margin-top:2px}
+.kpi b small{font-size:13px;font-weight:500;color:var(--muted);margin-left:3px}
+.kpi.ok b{color:var(--ok)} .kpi.bad b{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.grid2 .card{margin-bottom:0}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px}
+.bar .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .t{height:12px;background:var(--chip);border-radius:6px;overflow:hidden;display:flex}
+.bar .t i{display:block;height:100%;background:var(--red)}
+.bar .t i.ok{background:#34A853} .bar .t i.bad{background:#E0242E}
+.bar .v{font-weight:600;min-width:2.5em;text-align:right}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:-4px 0 10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.days{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:6px;overflow-x:auto}
+.days .d{flex:1 0 14px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:14px}
+.days .d i{display:block;width:100%;background:var(--red);border-radius:4px 4px 0 0;min-height:2px}
+.days .d small{font-size:10px;color:var(--muted);margin-top:3px}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#fff}
+thead th{font-size:12.5px;color:var(--muted);font-weight:600}
+tfoot td{font-weight:700}
+.loading{opacity:.55;transition:opacity .2s}
+@media (max-width:720px){
+  .filt{grid-template-columns:1fr 1fr}
+  .filt .br{grid-column:1/-1}
+  .xl{grid-column:1/-1;justify-content:center}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hello"><div><small>HUAWEI HUB BY UFICON</small><h1>รายงานสาขา</h1></div><a href="/">กลับหน้าแรก</a></header>
+
+  <section class="card filt">
+    <label>ตั้งแต่<input type="date" id="from"></label>
+    <label>ถึง<input type="date" id="to"></label>
+    <label class="br">สาขา<select id="branch"><option value="">ทุกสาขา</option></select></label>
+    <button type="button" class="xl" id="xl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>ดาวน์โหลด Excel</button>
+    <div class="quick" id="quick">
+      <button type="button" data-q="today">วันนี้</button><button type="button" data-q="7">7 วันล่าสุด</button>
+      <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
+    </div>
+  </section>
+  <div class="msg" id="msg" hidden></div>
+
+  <main id="main">
+    <h2><span class="dot"></span>Service Case</h2>
+    <div class="kpis" id="caseKpi"></div>
+    <div class="card"><h3>แยกตามสาขา <small>จำนวนเคส</small></h3>
+      <div class="legend"><span><i style="background:#34A853"></i>สำเร็จ</span><span><i style="background:#E0242E"></i>ไม่สำเร็จ</span></div>
+      <div class="bars" id="caseBranch"></div></div>
+    <div class="grid2">
+      <div class="card"><h3>เรื่องที่ช่วยลูกค้าบ่อย</h3><div class="bars" id="issues"></div></div>
+      <div class="card"><h3>สาเหตุที่ไม่สำเร็จ</h3><div class="bars" id="fails"></div></div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card"><h3>ประเภทสินค้า</h3><div class="bars" id="products"></div></div>
+      <div class="card"><h3>เคสรายวัน</h3><div class="days" id="caseDay"></div></div>
+    </div>
+
+    <h2><span class="dot"></span>ST Report</h2>
+    <div class="kpis" id="stKpi"></div>
+    <div class="card"><h3>ยอดแต่ละสาขา <small>ส่งรายงาน = จำนวนรอบที่กด "ส่งรายงาน"</small></h3><div class="scroll"><table id="stTable"></table></div></div>
+    <div class="grid2">
+      <div class="card"><h3>รุ่นที่ขายดี</h3><div class="bars" id="models"></div></div>
+      <div class="card"><h3>ยอดขายเครื่องรายวัน <small>Phone · Tablet · Watch · Audio · IoT</small></h3><div class="days" id="stDay"></div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const fmt = n => Number(n||0).toLocaleString('th-TH');
+const BRANCHES = ['HES-TMN','HES-KBI','HMD-HKT','HMD-CCS','HMD-CWN','HMD-EMQ','HMD-MVH','HMD-KKC','HMD-CNV'];
+const ST_KPI = [['phone','Phone','เครื่อง'],['tablet','Tablet','เครื่อง'],['watch','Watch','เรือน'],['audio','Audio','ชิ้น'],['iot','IoT','ชิ้น'],['accy','HUAWEI Accy','ชิ้น'],['third','Third-Party','ชิ้น'],['pre','Pre-order','คน'],['care','HUAWEI Care','ราย'],['service','Service (Walk-in)','ราย'],['lost','ปิดการขายไม่สำเร็จ','ราย']];
+
+$('branch').innerHTML += BRANCHES.map(b=>'<option>'+b+'</option>').join('');
+const qs = new URLSearchParams(location.search), now = new Date();
+$('from').value = qs.get('from') || ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+$('to').value = qs.get('to') || ymd(now);
+$('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
+// บัญชีสาขา (ล็อกตามอีเมล) เห็นเฉพาะสาขาตัวเอง — ปกติหน้านี้ใช้เฉพาะผู้ดูแล
+try{ const hu = JSON.parse(localStorage.getItem('hub_user')||'null'); if(hu && BRANCHES.includes(hu.branch)){ $('branch').value = hu.branch; $('branch').disabled = true; } }catch(e){}
+
+function params(){ return 'from='+$('from').value+'&to='+$('to').value+($('branch').value?'&branch='+$('branch').value:''); }
+function bars(el, rows, opt){
+  opt = opt || {};
+  if(!rows.length){ el.innerHTML = '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>'; return; }
+  const max = Math.max(1, ...rows.map(r=>r.total));
+  el.innerHTML = rows.map(r=>'<div class="bar"><span class="l" title="'+esc(r.name)+'">'+esc(r.name)+'</span><span class="t">'+
+    (r.parts ? r.parts.map(p=>'<i class="'+p[0]+'" style="width:'+(p[1]/max*100)+'%"></i>').join('') : '<i style="width:'+(r.total/max*100)+'%"></i>')+
+    '</span><span class="v">'+fmt(r.total)+(opt.pct&&r.pct!=null?' <small style="color:var(--muted);font-weight:400">('+r.pct+'%)</small>':'')+'</span></div>').join('');
+}
+function daysChart(el, from, to, get){
+  const out = [], d = new Date(from+'T00:00:00'), end = new Date(to+'T00:00:00');
+  let guard = 0; while(d <= end && guard++ < 400){ const k = ymd(d); out.push([k, get(k)]); d.setDate(d.getDate()+1); }
+  const max = Math.max(1, ...out.map(x=>x[1]));
+  if(!out.some(x=>x[1])){ el.innerHTML = '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>'; return; }
+  el.innerHTML = out.map(([k,v])=>'<div class="d" title="'+k+': '+v+'"><i style="height:'+(v/max*100)+'%"></i><small>'+Number(k.slice(8))+'</small></div>').join('');
+}
+
+async function load(){
+  if($('from').value > $('to').value){ showMsg('เลือกช่วงวันที่ให้ถูกต้อง'); return; }
+  history.replaceState(null, '', '?'+params());
+  markQuick();
+  $('main').classList.add('loading');
+  let r, d;
+  try{ r = await fetch('/api/rec/summary?'+params(), {cache:'no-store', credentials:'same-origin'}); d = await r.json(); }catch(e){ d = null; }
+  $('main').classList.remove('loading');
+  if(!r || r.status===401) return showMsg('ยังไม่ได้เชื่อมบัญชีกับระบบ — <a href="/?relogin=1&next='+encodeURIComponent(location.pathname+location.search)+'">แตะเพื่อเข้าสู่ระบบอีกครั้ง</a>');
+  if(r.status===403) return showMsg('หน้านี้สำหรับผู้ดูแล (เจ้าของระบบ / บัญชีที่มีเมนู Dashboard) เท่านั้น');
+  if(!d || !d.ok) return showMsg((d && d.error) || 'โหลดข้อมูลไม่ได้ ลองใหม่อีกครั้ง');
+  $('msg').hidden = true;
+  render(d);
+}
+function showMsg(h){ $('msg').innerHTML = h; $('msg').hidden = false; }
+
+function render(d){
+  const c = d.case, s = d.st, rate = c.cases ? Math.round(c.ok/c.cases*100) : 0;
+  $('caseKpi').innerHTML =
+    '<div class="kpi"><span>ลูกค้าที่ช่วย</span><b>'+fmt(c.visits)+'<small>คน</small></b></div>'+
+    '<div class="kpi"><span>เคสทั้งหมด</span><b>'+fmt(c.cases)+'<small>เคส</small></b></div>'+
+    '<div class="kpi ok"><span>สำเร็จ</span><b>'+fmt(c.ok)+'<small>'+(c.cases?rate+'%':'')+'</small></b></div>'+
+    '<div class="kpi bad"><span>ไม่สำเร็จ</span><b>'+fmt(c.fail)+'<small>'+(c.cases?(100-rate)+'%':'')+'</small></b></div>';
+  const brs = d.branch ? [d.branch] : d.branches;
+  bars($('caseBranch'), brs.map(b=>{ const x = c.byBranch[b] || {cases:0,ok:0,fail:0}; return {name:b, total:x.cases, parts:[['ok',x.ok],['bad',x.fail]]}; }).filter(r=>r.total || !d.branch));
+  const pct = (list, base) => list.map(x=>({name:x.name, total:x.count, pct: base ? Math.round(x.count/base*100) : null}));
+  bars($('issues'), pct(c.issues, c.cases), {pct:true});
+  bars($('fails'), pct(c.failReasons, c.fail), {pct:true});
+  bars($('products'), pct(c.products, c.cases), {pct:true});
+  daysChart($('caseDay'), d.from, d.to, k => (c.byDay[k]||{}).cases || 0);
+
+  $('stKpi').innerHTML = ST_KPI.map(([k,name,unit])=>'<div class="kpi"><span>'+esc(name)+'</span><b>'+fmt(s.totals[k])+'<small>'+unit+'</small></b></div>').join('');
+  const cols = ST_KPI;
+  $('stTable').innerHTML = '<thead><tr><th>สาขา</th>'+cols.map(x=>'<th>'+esc(x[1])+'</th>').join('')+'<th>ส่งรายงาน</th></tr></thead><tbody>'+
+    brs.map(b=>{ const x = s.byBranch[b] || {}; return '<tr><td>'+b+'</td>'+cols.map(([k])=>'<td>'+(x[k]?fmt(x[k]):'<span style="color:#C7C7CC">0</span>')+'</td>').join('')+'<td>'+fmt(s.sent[b]||0)+' รอบ</td></tr>'; }).join('')+
+    '</tbody>'+(brs.length>1?'<tfoot><tr><td>รวม</td>'+cols.map(([k])=>'<td>'+fmt(s.totals[k])+'</td>').join('')+'<td>'+fmt(Object.values(s.sent).reduce((a,b)=>a+b,0))+' รอบ</td></tr></tfoot>':'');
+  bars($('models'), s.models.map(x=>({name:x.name, total:x.count})));
+  daysChart($('stDay'), d.from, d.to, k => s.byDay[k] || 0);
+}
+
+function markQuick(){
+  const f = $('from').value, t = $('to').value, today = ymd(new Date()), n = new Date();
+  const q = { today:[today,today], 7:[ymd(new Date(Date.now()-6*864e5)),today], month:[ymd(new Date(n.getFullYear(),n.getMonth(),1)),today],
+    last:[ymd(new Date(n.getFullYear(),n.getMonth()-1,1)), ymd(new Date(n.getFullYear(),n.getMonth(),0))] };
+  document.querySelectorAll('#quick button').forEach(b=>{ const r = q[b.dataset.q]; b.classList.toggle('on', r[0]===f && r[1]===t); b._r = r; });
+}
+document.querySelectorAll('#quick button').forEach(b=>b.onclick=()=>{ markQuick(); $('from').value=b._r[0]; $('to').value=b._r[1]; load(); });
+['from','to','branch'].forEach(id=>$(id).addEventListener('change', load));
+$('xl').onclick = ()=>{ if($('from').value > $('to').value) return showMsg('เลือกช่วงวันที่ให้ถูกต้อง'); location.href = '/api/rec/export.xlsx?app=all&'+params(); };
+load();
+</script>
+<script src="/hub-nav.js"></script>
+</body>
+</html>

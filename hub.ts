@@ -52,6 +52,8 @@ const SEED_APPS: Omit<App, "id">[] = [
   { icon: "tool", name: "Service Case", desc: "บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ", url: "/case-log", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true },
   { icon: "chart", name: "Checklist Report Dashboard", desc: "สรุปคะแนน Checklist ทุกสาขา (เฉพาะผู้มีสิทธิ์)", url: "/report-dashboard", audience: "ผู้ดูแล", moment: "รายงาน", due: "", active: true },
 ]
+// รายงานสาขา (/records, Antt 20 Oct 2026) — dashboard of the Service Case / ST Report records + Excel.
+const RECORDS_APP: Omit<App, "id"> = { icon: "chart", name: "รายงานสาขา", desc: "สรุป Service Case · ST Report ทุกสาขา + ดาวน์โหลด Excel (เฉพาะผู้ดูแล)", url: "/records", audience: "ผู้ดูแล", moment: "รายงาน", due: "", active: true }
 // ST Report (Antt, 20 Oct 2026) — added to the menu by a one-time migration (see loadAll).
 const ST_REPORT_APP: Omit<App, "id"> = { icon: "file", name: "ST Report", desc: "กด + ทุกครั้งที่ขายได้ ส่งรายงานรอบ 15:00 และปิดร้าน", url: "/st-report", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
 // = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
@@ -162,6 +164,19 @@ async function migrateStReport() {
       console.log("[hub] added ST Report to the menu (id " + id + ")")
     }
     await store.set("mig_st_report", true)
+  }
+  // Once: รายงานสาขา after the Checklist Report Dashboard; accounts that may see the Dashboard get it too.
+  if (!(await store.get("mig_records_app"))) {
+    if (!apps.some(a => a.url === RECORDS_APP.url)) {
+      const id = Math.max(0, ...apps.map(a => a.id)) + 1
+      const dash = apps.find(a => a.url === DASHBOARD_URL)
+      apps.splice(dash ? apps.indexOf(dash) + 1 : apps.length, 0, { id, ...RECORDS_APP })
+      for (const l of logins) if (Array.isArray(l.menus) && dash && l.menus.includes(dash.id) && !l.menus.includes(id)) l.menus.push(id)
+      log.unshift({ at: nowTH(), by: "ระบบ", op: "เพิ่มแอป", detail: RECORDS_APP.name })
+      await store.set("apps", apps); await store.set("logins", logins); await store.set("log", log.slice(0, 300))
+      console.log("[hub] added รายงานสาขา to the menu (id " + id + ")")
+    }
+    await store.set("mig_records_app", true)
   }
 }
 

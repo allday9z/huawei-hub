@@ -105,7 +105,7 @@
   document.head.appendChild(st);
 
   var path = location.pathname.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
-  var tab = path === '/' || path === '/index' ? 'home' : path === '/report-dashboard' ? 'dash' : 'tools';
+  var tab = path === '/' || path === '/index' ? 'home' : path === '/report-dashboard' || path === '/records' ? 'dash' : 'tools';
 
   var nav = document.createElement('nav');
   nav.className = 'hubnav';
@@ -141,24 +141,10 @@
       (u.branch
         ? '<div class="row static"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>สาขา ' + esc(u.branch) + '</b><small>ล็อกตามอีเมลของสาขา (ทีม HOHW เท่านั้นที่เลือกสาขาได้)</small></span></div>'
         : '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>') +
-      (u.isOwner || u.canDashboard ? '<button class="row" type="button" data-a="xlsx"><span class="ic">' + svg('file') + '</span><span class="tx"><b>ดาวน์โหลดรายงาน (Excel)</b><small>Service Case · ST Report ย้อนหลัง แยกตามสาขา</small></span><span class="chev">›</span></button>' : '') +
+      (u.isOwner || u.canDashboard ? '<a class="row" href="/records"><span class="ic">' + svg('chart') + '</span><span class="tx"><b>รายงานสาขา</b><small>สรุป Service Case · ST Report เป็นแดชบอร์ด + ดาวน์โหลด Excel</small></span><span class="chev">›</span></a>' : '') +
       (u.isOwner ? '<a class="row" href="/admin"><span class="ic">' + svg('sliders') + '</span><span class="tx"><b>จัดการพอร์ทัล</b><small>เมนู · รายชื่อทีม · สิทธิ์อีเมล (เฉพาะผู้ดูแล)</small></span><span class="chev">›</span></a>' : '') +
       '<button class="row red" type="button" data-a="out"><span class="ic">' + svg('logout') + '</span><span class="tx"><b>ออกจากระบบ</b></span><span class="chev">›</span></button>' +
       '</div>';
-  }
-
-  // Excel (owner / Dashboard accounts): Service Case + ST Report saved in the hub, by date range and branch.
-  var BRANCH_CODES = ['HES-TMN', 'HES-KBI', 'HMD-HKT', 'HMD-CCS', 'HMD-CWN', 'HMD-EMQ', 'HMD-MVH', 'HMD-KKC', 'HMD-CNV'];
-  function exportHtml() {
-    var d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    var field = 'box-sizing:border-box;min-width:0;width:100%;margin:4px 0 12px;padding:11px 12px;border:1px solid #E6E6EB;border-radius:12px;font:inherit;background:#fff';
-    return '<h3>ดาวน์โหลดรายงาน (Excel)</h3><div class="list" style="padding:14px 14px 4px">' +
-      '<label class="lab" style="margin:0">ข้อมูล</label><select id="hubXApp" style="' + field + '"><option value="all">Service Case + ST Report</option><option value="case">Service Case</option><option value="st">ST Report</option></select>' +
-      '<label class="lab" style="margin:0">สาขา</label><select id="hubXBranch" style="' + field + '"><option value="">ทุกสาขา</option>' + BRANCH_CODES.map(function (b) { return '<option>' + b + '</option>'; }).join('') + '</select>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="lab" style="margin:0">ตั้งแต่</label><input type="date" id="hubXFrom" value="' + d.slice(0, 8) + '01" style="' + field + '"></div>' +
-      '<div><label class="lab" style="margin:0">ถึง</label><input type="date" id="hubXTo" value="' + d + '" style="' + field + '"></div></div></div>' +
-      '<div class="gap"></div><button class="row" type="button" data-a="xlsx-go" style="justify-content:center;background:#C7000B;color:#fff;border-radius:16px;font-weight:700">ดาวน์โหลด .xlsx</button>' +
-      '<p class="lab" id="hubXMsg" style="margin:10px 6px 0"></p>';
   }
 
   // Change branch: the portal page has the branch picker; elsewhere go there and come back.
@@ -192,13 +178,7 @@
     if (!a) return;
     if (a.dataset.a === 'branch') switchBranch();
     else if (a.dataset.a === 'out') logout();
-    else if (a.dataset.a === 'xlsx') open(exportHtml(), 'set');
-    else if (a.dataset.a === 'xlsx-go') {
-      var q = function (id) { return document.getElementById(id).value; };
-      if (!q('hubXFrom') || !q('hubXTo') || q('hubXFrom') > q('hubXTo')) { document.getElementById('hubXMsg').textContent = 'เลือกช่วงวันที่ให้ถูกต้อง'; return; }
-      document.getElementById('hubXMsg').textContent = 'กำลังสร้างไฟล์… (ถ้าไม่ดาวน์โหลด ให้เข้าสู่ระบบที่หน้าแรกอีกครั้ง)';
-      location.href = '/api/rec/export.xlsx?' + ['app=' + q('hubXApp'), 'branch=' + encodeURIComponent(q('hubXBranch')), 'from=' + q('hubXFrom'), 'to=' + q('hubXTo')].join('&');
-    }
+
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheet.hidden) close(); });
 

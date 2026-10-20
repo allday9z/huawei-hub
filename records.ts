@@ -141,11 +141,69 @@ async function exportXlsx(url: URL): Promise<Response> {
   return new Response(buf as ArrayBuffer, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" } })
 }
 
+/* ---------------- dashboard summary (/records) ---------------- */
+function rangeOf(url: URL) {
+  const from = DAY.test(url.searchParams.get("from") ?? "") ? url.searchParams.get("from")! : bkkToday().slice(0, 8) + "01"
+  const to = DAY.test(url.searchParams.get("to") ?? "") ? url.searchParams.get("to")! : bkkToday()
+  const branch = BRANCH_CODES.has(url.searchParams.get("branch") ?? "") ? url.searchParams.get("branch")! : ""
+  return { from, to, branch, inRange: (k: string) => { const p = k.split(":"); return p[3] >= from && p[3] <= to && (!branch || p[2] === branch) } }
+}
+const bump = (m: Record<string, number>, k: string, n = 1) => { if (k) m[k] = (m[k] ?? 0) + n }
+const top = (m: Record<string, number>, n = 8) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([name, count]) => ({ name, count }))
+async function summary(url: URL) {
+  const { from, to, branch, inRange } = rangeOf(url)
+  if (from > to) return json({ ok: false, error: "ช่วงวันที่ไม่ถูกต้อง" }, 400)
+  // Service Case
+  const cs = { cases: 0, visits: 0, ok: 0, fail: 0, byBranch: {} as Record<string, { cases: number; ok: number; fail: number; visits: number }>, byDay: {} as Record<string, { cases: number; ok: number }>,
+    products: {} as Record<string, number>, issues: {} as Record<string, number>, failReasons: {} as Record<string, number>, nextActions: {} as Record<string, number>, staff: {} as Record<string, number> }
+  for (const { key: k, value } of await store.list("rec:case:")) {
+    if (!inRange(k)) continue
+    const [, , br, day] = k.split(":"), visits = new Set<string>()
+    for (const c of value?.cases ?? []) {
+      const ok = c.result === "สำเร็จ"
+      cs.cases++; ok ? cs.ok++ : cs.fail++; visits.add(c.visitId || c.id)
+      const b = (cs.byBranch[br] ??= { cases: 0, ok: 0, fail: 0, visits: 0 }); b.cases++; ok ? b.ok++ : b.fail++
+      const d = (cs.byDay[day] ??= { cases: 0, ok: 0 }); d.cases++; if (ok) d.ok++
+      bump(cs.products, c.product); for (const i of c.issues ?? []) bump(cs.issues, i)
+      if (!ok) { bump(cs.failReasons, c.failReason); bump(cs.nextActions, c.nextAction) }
+      bump(cs.staff, c.staff)
+    }
+    cs.visits += visits.size; if (cs.byBranch[br]) cs.byBranch[br].visits += visits.size
+  }
+  // ST Report
+  const st = { totals: {} as Record<string, number>, byBranch: {} as Record<string, Record<string, number>>, byDay: {} as Record<string, number>, models: {} as Record<string, number>, sent: {} as Record<string, number>, days: {} as Record<string, number> }
+  const DEVICE = new Set(["phone", "tablet", "watch", "audio", "iot"])
+  for (const { key: k, value } of await store.list("rec:st:")) {
+    if (!inRange(k)) continue
+    const [, , br, day] = k.split(":")
+    const live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
+    if (live.length) st.days[br] = (st.days[br] ?? 0) + 1
+    for (const e of live) {
+      bump(st.totals, e.cat, e.qty); const b = (st.byBranch[br] ??= {}); bump(b, e.cat, e.qty)
+      if (DEVICE.has(e.cat)) bump(st.byDay, day, e.qty)
+      if (e.model) bump(st.models, `${ST_CATS[e.cat] ?? e.cat} · ${e.model}${e.size ? " (" + e.size + ")" : ""}`, e.qty)
+    }
+    bump(st.sent, br, new Set((value?.reports ?? []).map((r: any) => r.round)).size)
+  }
+  // Service (Walk-in) on the ST Report = customers on Service Case + walk-ins typed on ST
+  for (const [br, b] of Object.entries(cs.byBranch)) { const x = (st.byBranch[br] ??= {}); bump(x, "service", b.visits) }
+  bump(st.totals, "service", cs.visits)
+  return json({
+    ok: true, from, to, branch, branches: BRANCHES.map(b => b.code), cats: ST_CATS,
+    case: { ...cs, products: top(cs.products), issues: top(cs.issues, 10), failReasons: top(cs.failReasons), nextActions: top(cs.nextActions), staff: top(cs.staff, 10) },
+    st: { ...st, models: top(st.models, 10) },
+  })
+}
+
 /* ---------------- routes ---------------- */
 export async function recordsRoute(req: Request, url: URL): Promise<Response | null> {
   const p = url.pathname
   if (!p.startsWith("/api/rec/")) return null
   try {
+    if (p === "/api/rec/summary" && req.method === "GET") {
+      const w = await who(req, "admin"); if (w instanceof Response) return w
+      return await summary(url)
+    }
     if (p === "/api/rec/export.xlsx" && req.method === "GET") {
       const w = await who(req, "admin"); if (w instanceof Response) return w
       return await exportXlsx(url)
