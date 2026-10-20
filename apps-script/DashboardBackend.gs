@@ -1,37 +1,34 @@
 /**
- * Report Dashboard — Web App backend (v3, Neo 2026-10-16)
- * ---------------------------------------------------------------------------
- * v3: WHO MAY VIEW is managed on the HUAWEI Hub ⚙️ settings page ("อีเมลเข้าใช้งาน").
- *   After verifying the Google token, this script forwards it to the hub
- *   (HUB_URL/api/admin/whoami), which checks it with Google again and answers
- *   canDashboard from that list. If the hub can't be reached, ALLOWED_EMAILS
- *   below is used as a fallback — so the dashboard never locks everyone out.
- *
- * (v2, security-hardened by Neo 2026-10-07)
+ * Report Dashboard (Morning Internal Dashboard) — Web App backend (v4, Neo 2026-10-20)
  * ---------------------------------------------------------------------------
  * Bind this script to the "Huawei_Report Morning Checklist" spreadsheet
- * Extensions > Apps Script > paste this file in.
+ * Extensions > Apps Script > paste this file in (replace the whole file).
  *
- * WHAT CHANGED vs. v1
- *   v1 trusted an `email=` URL parameter, so anyone who had the /exec link
- *   could type an allowed email and download every branch's scores. v2 only
- *   accepts the Google sign-in ID token the dashboard page receives from
- *   "Sign in with Google", verifies it with Google (signature/expiry via the
- *   tokeninfo endpoint), checks it was issued for OUR OAuth Client ID, that
- *   the email is verified, and that it's on ALLOWED_EMAILS.
+ * v4 = Antt's v3 edits (MorningInternalDashboard.gs, 20 Oct 2026) merged with Neo's v3 (16 Oct):
+ *   - [Antt] Error messages say the real reason (which email was rejected, Client ID
+ *     mismatch, expired token, unverified email) instead of one generic message.
+ *   - [Antt] Rejected results are NOT cached; only successful sign-ins are cached
+ *     (5 min). Adding an email takes effect immediately.
+ *   - [Antt] Email comparison ignores dots and "+tag" for gmail.com / googlemail.com
+ *     (wetaga.chow@gmail.com == wetagachow@gmail.com), as Gmail itself does.
+ *   - [Neo] WHO MAY VIEW is managed on the HUAWEI Hub ⚙️ page ("สิทธิ์อีเมล"): after the
+ *     Google check, the token is forwarded to HUB_URL/api/admin/whoami, which verifies
+ *     it again and answers canDashboard. ALLOWED_EMAILS below is only the fallback when
+ *     the hub can't be reached — so the dashboard never locks everyone out.
+ *   - [Neo] action=access ("may this account see the Dashboard?", no report data).
  *
  * ONE-TIME SETUP
  *   1. Paste this file in (replace any starter code).
- *   2. Set GOOGLE_CLIENT_ID below to the same OAuth Client ID that is put into
- *      report-dashboard.html (SETUP step 3).
- *   3. Edit ALLOWED_EMAILS — everyone allowed to open the Report Dashboard.
+ *   2. GOOGLE_CLIENT_ID must be the same OAuth Client ID that is in report-dashboard.html.
+ *   3. People: add / remove them on the hub ⚙️ > สิทธิ์อีเมล (tick the Dashboard menu).
+ *      Keep ALLOWED_EMAILS roughly in sync — it is only used if the hub is down.
  *   4. Deploy > New deployment > "Web app". Execute as: Me. Who has access: Anyone.
- *      Authorize (it will also ask for "connect to an external service" — that is
- *      the call to Google's token check).
- *   5. Copy the Web app URL (ends in /exec) → report-dashboard.html BACKEND_URL.
+ *      Authorize (it also asks for "connect to an external service" — the calls to
+ *      Google's token check and to the hub).
+ *   5. Copy the Web app URL (ends in /exec) -> report-dashboard.html BACKEND_URL.
  *
  * Updating later: Deploy > Manage deployments > Edit (pencil) > New version >
- * Deploy (keeps the same URL).
+ * Deploy (keeps the same URL). Editing the code alone does NOT update the live app.
  */
 
 const SHEET_NAME = "ชีต1";
@@ -39,18 +36,17 @@ const SHEET_NAME = "ชีต1";
 // Same value as GOOGLE_CLIENT_ID in report-dashboard.html (…apps.googleusercontent.com)
 const GOOGLE_CLIENT_ID = "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com";
 
-// HUAWEI Hub (manages the list of emails allowed to view — ⚙️ > อีเมลเข้าใช้งาน)
+// HUAWEI Hub — manages who may view (⚙️ > สิทธิ์อีเมล). '' = use ALLOWED_EMAILS only.
 const HUB_URL = "https://huawei-hub.coolify.pve01.prod.uficon.com";
 
 // FALLBACK ONLY (used when the hub can't be reached). Manage people on the hub ⚙️ page.
 const ALLOWED_EMAILS = [
-  "marketing.uficon@gmail.com",
+  "wetaga.chow@gmail.com",       // เวธกา เชาวน์ชูเวชช (จ๊ะจ๋า) — HOHW
   "benyapakamonphan@gmail.com",
   "th.verapat@gmail.com",
   "jomyutdamon1211@gmail.com",
   "qwe031168492@gmail.com",
-  "wetaga.chow@gmail.com"      // เวธกา เชาวน์ชูเวชช (จ๊ะจ๋า) — HOHW
-  // "someone.else@uficon.com",
+  "marketing.uficon@gmail.com"
 ];
 
 function doGet(e) {
@@ -75,7 +71,8 @@ function doGet(e) {
 /**
  * Verifies a Google Sign-In ID token. Google's tokeninfo endpoint checks the
  * signature and expiry; we then check audience, issuer, verified email and the
- * allow-list. Results are cached for 5 minutes per token to avoid repeat calls.
+ * access list (hub, or ALLOWED_EMAILS as fallback). Only successful results are
+ * cached (5 minutes per token).
  */
 function verifyIdToken_(idToken) {
   if (!GOOGLE_CLIENT_ID) return { ok: false, error: 'ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ในสคริปต์' };
@@ -91,7 +88,7 @@ function verifyIdToken_(idToken) {
     'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
     { muteHttpExceptions: true });
   if (res.getResponseCode() !== 200) {
-    return { ok: false, error: 'การเข้าสู่ระบบหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่' };
+    return { ok: false, error: 'การเข้าสู่ระบบหมดอายุหรือไม่ถูกต้อง (Google ตอบ ' + res.getResponseCode() + ') กรุณาเข้าสู่ระบบใหม่' };
   }
   const info = JSON.parse(res.getContentText());
   const email = String(info.email || '').toLowerCase().trim();
@@ -99,36 +96,60 @@ function verifyIdToken_(idToken) {
   const verified = info.email_verified === true || info.email_verified === 'true';
   const notExpired = Number(info.exp || 0) * 1000 > Date.now();
 
-  let result;
-  if (info.aud !== GOOGLE_CLIENT_ID || !issuerOk || !notExpired) {
-    result = { ok: false, error: 'การเข้าสู่ระบบไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่' };
-  } else if (!verified || !allowedByHub_(idToken, email)) {
-    result = { ok: false, error: 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้' };
-  } else {
-    result = { ok: true, email: email };
+  if (info.aud !== GOOGLE_CLIENT_ID) {
+    return { ok: false, error: 'Client ID ไม่ตรงกัน: ตรวจ GOOGLE_CLIENT_ID ในสคริปต์ให้ตรงกับในหน้า report-dashboard.html' };
   }
+  if (!issuerOk || !notExpired) {
+    return { ok: false, error: 'การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
+  }
+  if (!verified) {
+    return { ok: false, error: 'อีเมล ' + email + ' ยังไม่ได้รับการยืนยันจาก Google' };
+  }
+  const access = canView_(idToken, email);
+  if (!access.ok) {
+    return { ok: false, error: 'บัญชี ' + email + ' ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้' +
+      (access.source === 'hub' ? ' (ผู้ดูแลเพิ่มสิทธิ์ได้ที่ HUAWEI Hub ⚙️ > สิทธิ์อีเมล — เลือกเมนู Dashboard)' : '') };
+  }
+
+  const result = { ok: true, email: email };
   cache.put(cacheKey, JSON.stringify(result), 300);
   return result;
 }
 
 // Ask the hub whether this signed-in account may view (list on the ⚙️ settings page).
-// Falls back to ALLOWED_EMAILS if the hub is down or answers something unexpected.
-function allowedByHub_(idToken, email) {
-  try {
-    const res = UrlFetchApp.fetch(HUB_URL + '/api/admin/whoami', {
-      headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true
-    });
-    if (res.getResponseCode() === 200) {
-      const r = JSON.parse(res.getContentText());
-      if (r && r.ok && String(r.email || '').toLowerCase() === email) return r.canDashboard === true;
-    }
-  } catch (err) {}
-  return isAllowed(email);
+// Falls back to ALLOWED_EMAILS if the hub is not set, down, or answers something unexpected.
+function canView_(idToken, email) {
+  if (HUB_URL) {
+    try {
+      const res = UrlFetchApp.fetch(HUB_URL + '/api/admin/whoami', {
+        headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true
+      });
+      if (res.getResponseCode() === 200) {
+        const r = JSON.parse(res.getContentText());
+        if (r && r.ok && canonEmail_(r.email) === canonEmail_(email)) return { ok: r.canDashboard === true, source: 'hub' };
+      }
+    } catch (err) {}
+  }
+  return { ok: isAllowed(email), source: 'list' };
+}
+
+// Gmail ignores dots and anything after "+" (wetaga.chow+x@gmail.com = wetagachow@gmail.com).
+function canonEmail_(email) {
+  const e = String(email || '').toLowerCase().trim();
+  const at = e.lastIndexOf('@');
+  if (at < 0) return e;
+  let user = e.slice(0, at), domain = e.slice(at + 1);
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    user = user.split('+')[0].replace(/\./g, '');
+    domain = 'gmail.com';
+  }
+  return user + '@' + domain;
 }
 
 function isAllowed(email) {
   if (!email) return false;
-  return ALLOWED_EMAILS.map(x => x.toLowerCase().trim()).indexOf(email) !== -1;
+  const target = canonEmail_(email);
+  return ALLOWED_EMAILS.some(function (x) { return canonEmail_(x) === target; });
 }
 
 /**

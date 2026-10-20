@@ -10,6 +10,17 @@ import { SQL } from "bun"
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "777160588326-vrashr368vl4461981rfhmue1dsjcdnf.apps.googleusercontent.com"
 const OWNERS = (process.env.HUB_OWNER_EMAILS ?? "benyapakamonphan@gmail.com")
   .split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
+// Gmail ignores dots and "+tag" (wetaga.chow@gmail.com == wetagachow@gmail.com): compare that way, so an
+// account whose Google token carries the other spelling still matches its entry (same rule as the
+// Report Dashboard script v4).
+function canonEmail(email: string): string {
+  const e = String(email || "").toLowerCase().trim(), at = e.lastIndexOf("@")
+  if (at < 0) return e
+  let user = e.slice(0, at), domain = e.slice(at + 1)
+  if (domain === "gmail.com" || domain === "googlemail.com") { user = user.split("+")[0].replace(/\./g, ""); domain = "gmail.com" }
+  return user + "@" + domain
+}
+const isOwnerEmail = (email: string) => OWNERS.some(o => canonEmail(o) === canonEmail(email))
 // Local testing only: accept "dev:<email>" as a token. Never set in production.
 const DEV_AUTH = process.env.HUB_DEV_AUTH === "1"
 const FILE_STORE = process.env.HUB_STORE_FILE ?? "/tmp/huawei-hub-store.json"
@@ -113,7 +124,7 @@ async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]
   // code) were added to sign in for staff work, so they get every menu except the Dashboard.
   if (logins.some(l => l.menus === undefined)) {
     const staffMenus = apps.filter(a => a.url !== DASHBOARD_URL).map(a => a.id)
-    for (const l of logins) if (l.menus === undefined) l.menus = OWNERS.includes(l.email) || !/^(HES|HMD)-[A-Z]{3}\b/.test(l.note) ? "*" : staffMenus
+    for (const l of logins) if (l.menus === undefined) l.menus = isOwnerEmail(l.email) || !/^(HES|HMD)-[A-Z]{3}\b/.test(l.note) ? "*" : staffMenus
     await store.set("logins", logins); console.log("[hub] migrated logins -> per-email menus")
   }
   return { apps, staff, logins, log }
@@ -248,9 +259,9 @@ async function applyOp(a: any, by: string): Promise<void> {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("อีเมลไม่ถูกต้อง")
       const cur = d.logins.find(x => x.email === email)
       const active = a.active !== false
-      if (!active && OWNERS.includes(email)) throw new Error("ปิดสิทธิ์เจ้าของระบบไม่ได้")
+      if (!active && isOwnerEmail(email)) throw new Error("ปิดสิทธิ์เจ้าของระบบไม่ได้")
       const appIds = new Set(d.apps.map(x => x.id))
-      let menus: "*" | number[] = a.menus === "*" || OWNERS.includes(email) ? "*"
+      let menus: "*" | number[] = a.menus === "*" || isOwnerEmail(email) ? "*"
         : [...new Set((Array.isArray(a.menus) ? a.menus : []).map(Number).filter(x => appIds.has(x)))]
       if (a.menus === undefined && cur) menus = cur.menus           // toggling on/off keeps the menus
       if (menus !== "*" && !menus.length) throw new Error("เลือกอย่างน้อย 1 เมนู")
@@ -290,8 +301,8 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       // asks whether that account may view (canDashboard) — one list, managed on ⚙️.
       if (!email) return json({ ok: false, email: null, isOwner: false, canDashboard: false, allowed: false })
       const d = await loadAll()
-      const isOwner = OWNERS.includes(email)
-      const login = d.logins.find(l => l.active && l.email === email)
+      const isOwner = isOwnerEmail(email)
+      const login = d.logins.find(l => l.active && canonEmail(l.email) === canonEmail(email))
       const ids = isOwner || login?.menus === "*" ? d.apps.map(x => x.id) : login ? login.menus as number[] : null
       // menus: URLs this account may use (null = not listed -> the "ทุกคน" menus)
       const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
@@ -302,7 +313,7 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
     if (p === "/api/admin/load" || p === "/api/admin/op") {
       const email = await verifyGoogle(bearer(req))
       if (!email) return json({ ok: false, error: "auth" }, 401)
-      if (!OWNERS.includes(email)) return json({ ok: false, error: "notadmin", email }, 403)
+      if (!isOwnerEmail(email)) return json({ ok: false, error: "notadmin", email }, 403)
       if (p === "/api/admin/load" && req.method === "GET") return json(await adminData(email))
       if (p === "/api/admin/op" && req.method === "POST") {
         let body: any; try { body = await req.json() } catch { return json({ ok: false, error: "bad request" }, 400) }
