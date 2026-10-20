@@ -114,7 +114,7 @@
   nav.innerHTML =
     '<a href="/" data-t="home">' + svg('home') + 'หน้าแรก</a>' +
     '<button type="button" data-t="tools">' + svg('grid') + 'เครื่องมือ</button>' +
-    '<a href="/report-dashboard" data-t="dash">' + svg('chart') + 'แดชบอร์ด</a>' +
+    '<button type="button" data-t="dash">' + svg('chart') + 'แดชบอร์ด</button>' +
     '<button type="button" data-t="set">' + svg('gear') + 'ตั้งค่า</button>';
   var sheet = document.createElement('div');
   sheet.className = 'hubsheet';
@@ -132,6 +132,21 @@
       return '<a class="row" href="' + esc(a.url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '><span class="ic">' + svg(a.icon) + '</span>' +
         '<span class="tx"><b>' + esc(a.name) + '</b>' + (a.desc ? '<small>' + esc(a.desc) + '</small>' : '') + '</span><span class="chev">›</span></a>';
     }).join('') : '<div class="empty">บัญชีนี้ยังไม่มีเมนูที่ใช้งานได้ — ติดต่อผู้ดูแลระบบ</div>') + '</div>';
+  }
+  // แดชบอร์ด: choose which topic (Antt, 20 Oct 2026) — Checklist scores, Service Case, ST Report.
+  // Checklist = the Report Dashboard app (per-email menus); Service Case / ST Report = /records (owner / Dashboard accounts).
+  function dashHtml() {
+    var u = user() || {}, admin = !!(u.isOwner || u.canDashboard), list = [];
+    if (canSee(u, { url: '/report-dashboard' })) list.push({ icon: 'checklist', name: 'Morning Store Checklist', desc: 'สรุปคะแนน Checklist ทุกสาขา รายวัน / สัปดาห์ / เดือน', url: '/report-dashboard' });
+    if (admin) {
+      list.push({ icon: 'tool', name: 'Service Case', desc: 'เคสที่ช่วยลูกค้า สำเร็จ / ไม่สำเร็จ เรื่องที่เจอบ่อย แยกสาขา', url: '/records?view=case' });
+      list.push({ icon: 'receipt', name: 'ST Report', desc: 'ยอดขายแต่ละหมวด รุ่นขายดี รอบที่ส่งรายงาน แยกสาขา', url: '/records?view=st' });
+    }
+    var curView = path === '/records' ? (new URLSearchParams(location.search).get('view') || 'all') : '';
+    return '<h3>แดชบอร์ด</h3><div class="lab">เลือกเรื่องที่ต้องการดู</div><div class="list">' + (list.length ? list.map(function (a) {
+      var on = a.url === '/report-dashboard' ? path === '/report-dashboard' : a.url === '/records?view=' + curView;
+      return '<a class="row" href="' + esc(a.url) + '"><span class="ic">' + svg(a.icon) + '</span><span class="tx"><b>' + esc(a.name) + (on ? ' <small style="display:inline;color:#C7000B;font-weight:600">· กำลังดู</small>' : '') + '</b><small>' + esc(a.desc) + '</small></span><span class="chev">›</span></a>';
+    }).join('') : '<div class="empty">บัญชีนี้ยังไม่มีแดชบอร์ดที่ดูได้ — ติดต่อผู้ดูแลระบบ</div>') + '</div>';
   }
   function settingsHtml() {
     var u = user() || {}, rec = recorder();
@@ -170,6 +185,7 @@
     var b = e.target.closest('button[data-t]');
     if (!b) return;
     if (b.dataset.t === 'tools') open(toolsHtml(), 'tools');
+    else if (b.dataset.t === 'dash') open(dashHtml(), 'dash');
     else if (b.dataset.t === 'set') open(settingsHtml(), 'set');
   });
   sheet.addEventListener('click', function (e) {

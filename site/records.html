@@ -63,6 +63,9 @@ th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:
 thead th{font-size:12.5px;color:var(--muted);font-weight:600}
 tfoot td{font-weight:700}
 .loading{opacity:.55;transition:opacity .2s}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
+.seg button{border:0;background:none;border-radius:11px;padding:9px 6px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 @media (max-width:720px){
   .filt{grid-template-columns:1fr 1fr}
   .filt .br{grid-column:1/-1}
@@ -86,9 +89,11 @@ tfoot td{font-weight:700}
       <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
     </div>
   </section>
+  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button></div>
   <div class="msg" id="msg" hidden></div>
 
   <main id="main">
+    <div id="secCase">
     <h2><span class="dot"></span>Service Case</h2>
     <div class="kpis" id="caseKpi"></div>
     <div class="card"><h3>แยกตามสาขา <small>จำนวนเคส</small></h3>
@@ -103,12 +108,15 @@ tfoot td{font-weight:700}
       <div class="card"><h3>เคสรายวัน</h3><div class="days" id="caseDay"></div></div>
     </div>
 
+    </div>
+    <div id="secSt">
     <h2><span class="dot"></span>ST Report</h2>
     <div class="kpis" id="stKpi"></div>
     <div class="card"><h3>ยอดแต่ละสาขา <small>ส่งรายงาน = จำนวนรอบที่กด "ส่งรายงาน"</small></h3><div class="scroll"><table id="stTable"></table></div></div>
     <div class="grid2">
       <div class="card"><h3>รุ่นที่ขายดี</h3><div class="bars" id="models"></div></div>
       <div class="card"><h3>ยอดขายเครื่องรายวัน <small>Phone · Tablet · Watch · Audio · IoT</small></h3><div class="days" id="stDay"></div></div>
+    </div>
     </div>
   </main>
 </div>
@@ -127,10 +135,20 @@ const qs = new URLSearchParams(location.search), now = new Date();
 $('from').value = qs.get('from') || ymd(new Date(now.getFullYear(), now.getMonth(), 1));
 $('to').value = qs.get('to') || ymd(now);
 $('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
+// มุมมอง (เลือกจากแถบ "แดชบอร์ด"): all | case | st
+let view = ['case','st'].includes(qs.get('view')) ? qs.get('view') : 'all';
+function applyView(){
+  document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
+  $('secCase').hidden = view==='st'; $('secSt').hidden = view==='case';
+  document.title = view==='case' ? 'แดชบอร์ด Service Case' : view==='st' ? 'แดชบอร์ด ST Report' : 'รายงานสาขา';
+  document.querySelector('.hello h1').textContent = view==='case' ? 'แดชบอร์ด Service Case' : view==='st' ? 'แดชบอร์ด ST Report' : 'รายงานสาขา';
+}
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; applyView(); history.replaceState(null,'','?'+params()); });
+applyView();
 // บัญชีสาขา (ล็อกตามอีเมล) เห็นเฉพาะสาขาตัวเอง — ปกติหน้านี้ใช้เฉพาะผู้ดูแล
 try{ const hu = JSON.parse(localStorage.getItem('hub_user')||'null'); if(hu && BRANCHES.includes(hu.branch)){ $('branch').value = hu.branch; $('branch').disabled = true; } }catch(e){}
 
-function params(){ return 'from='+$('from').value+'&to='+$('to').value+($('branch').value?'&branch='+$('branch').value:''); }
+function params(){ return 'from='+$('from').value+'&to='+$('to').value+($('branch').value?'&branch='+$('branch').value:'')+(view!=='all'?'&view='+view:''); }
 function bars(el, rows, opt){
   opt = opt || {};
   if(!rows.length){ el.innerHTML = '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>'; return; }
@@ -195,7 +213,7 @@ function markQuick(){
 }
 document.querySelectorAll('#quick button').forEach(b=>b.onclick=()=>{ markQuick(); $('from').value=b._r[0]; $('to').value=b._r[1]; load(); });
 ['from','to','branch'].forEach(id=>$(id).addEventListener('change', load));
-$('xl').onclick = ()=>{ if($('from').value > $('to').value) return showMsg('เลือกช่วงวันที่ให้ถูกต้อง'); location.href = '/api/rec/export.xlsx?app=all&'+params(); };
+$('xl').onclick = ()=>{ if($('from').value > $('to').value) return showMsg('เลือกช่วงวันที่ให้ถูกต้อง'); location.href = '/api/rec/export.xlsx?app='+view+'&'+params(); };
 load();
 </script>
 <script src="/hub-nav.js"></script>
