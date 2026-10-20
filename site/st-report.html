@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<script src="/auth-guard.js"></script>
+<script src="/team.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ST Report</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;
+  --red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC;--warn:#A15C00;--warn-t:#FFF3DC;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:'IBM Plex Sans Thai',-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif;color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(180deg,#F9E1E2 0,var(--bg) 320px) no-repeat,var(--bg)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:720px;margin:0 auto;padding:16px 16px 120px}
+
+/* หัว */
+.hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:4px 4px 14px}
+.hello small{display:block;font-size:12px;font-weight:700;color:var(--red);letter-spacing:1px}
+.hello h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+.hello a{font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+
+.hero{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;margin-bottom:14px}
+.hero .band{background:linear-gradient(120deg,var(--red),var(--red2));color:#fff;padding:14px 20px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hero .band b{font-size:17px}
+.hero .band span{font-size:13px;opacity:.9}
+.swb{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap}
+.hero .body{padding:16px 20px 18px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--chip);border-radius:14px;padding:4px;gap:4px}
+.seg button{border:0;background:none;border-radius:11px;padding:10px 6px;font-weight:600;line-height:1.25}
+.seg button small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.seg button.on small{color:var(--red)}
+.seg button small.sent{color:var(--ok)!important;font-weight:600}
+.keep{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+.who{display:flex;align-items:center;gap:10px;margin-top:14px}
+.who label{font-size:13px;color:var(--muted);white-space:nowrap}
+select{appearance:none;background:var(--chip) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6e73'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border:1px solid transparent;border-radius:12px;padding:10px 30px 10px 12px;width:100%;font-weight:500}
+select.empty{border-color:var(--red);background-color:var(--red-t)}
+
+.label{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin:18px 4px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.label span{font-weight:400;font-size:12px}
+
+/* ช่องตัวเลข */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
+.box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.box .h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.box .ic{width:30px;height:30px;border-radius:9px;background:var(--red-t);color:var(--red);display:grid;place-items:center;flex:none}
+.box .ic svg{width:18px;height:18px}
+.box .num{font-size:28px;font-weight:700;line-height:1}
+.box .num small{font-size:13px;font-weight:500;color:var(--muted);margin-left:4px}
+.box .ctl{display:flex;gap:6px}
+.box .ctl button{flex:1;border:0;border-radius:10px;padding:8px 0;font-weight:700;font-size:16px;background:var(--chip)}
+.box .ctl button.add{background:var(--ink);color:#fff}
+.box .ctl button:disabled{opacity:.35}
+.box .note{font-size:12px;color:var(--muted);line-height:1.4}
+.box .models{font-size:12.5px;color:#3A3A3C;line-height:1.5}
+.box.auto .ic{background:var(--ok-t);color:var(--ok)}
+.box a{color:var(--red);text-decoration:none;font-weight:600}
+
+/* รายการวันนี้ */
+.list{background:var(--card);border:1px solid var(--line);border-radius:18px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row time{font-size:13px;color:var(--muted);width:42px;flex:none}
+.row .t{flex:1;min-width:0;font-size:14px}
+.row .t small{display:block;font-size:12px;color:var(--muted)}
+.row .q{font-weight:700}
+.row .del{border:0;background:none;color:var(--muted);font-size:18px;padding:2px 6px}
+.row.pending .t small::after{content:" · รอส่ง";color:var(--warn)}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:14px}
+
+/* แถบล่าง */
+.bar{position:fixed;left:0;right:0;bottom:var(--hub-dock,0px);background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.bar .in{max-width:720px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.bar .hint{flex:1;font-size:12.5px;color:var(--muted);line-height:1.35}
+.btn{border:0;border-radius:999px;padding:12px 18px;font-weight:600;white-space:nowrap}
+.btn.red{background:var(--red);color:#fff}
+.btn.line{background:#06C755;color:#fff}
+.btn.ghost{background:var(--chip)}
+.btn:disabled{opacity:.4}
+
+/* หน้าต่างเลือกรุ่น */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet .panel{background:#fff;border-radius:22px 22px 0 0;width:100%;max-width:720px;max-height:88vh;overflow:auto;padding:18px 18px calc(18px + env(safe-area-inset-bottom))}
+@media(min-width:720px){.sheet{align-items:center}.sheet .panel{border-radius:22px}}
+.panel h3{font-size:18px;margin-bottom:4px}
+.panel p{font-size:13px;color:var(--muted);margin-bottom:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-size:13.5px}
+.chip.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.hintchips{margin-top:8px}
+.hintchips:empty{display:none}
+.hintchips::before{content:"สีที่มีในสต็อก (แตะเพื่อใส่)";display:block;width:100%;font-size:12px;color:var(--muted);margin-bottom:2px}
+.hintchips .chip{padding:6px 11px;font-size:13px;background:var(--chip);border-color:transparent}
+.hintchips .chip.on{background:var(--ink);color:#fff}
+.field{margin-top:12px}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+.field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
+.qty{display:flex;align-items:center;gap:10px}
+.qty button{width:44px;height:44px;border-radius:12px;border:0;background:var(--chip);font-size:20px;font-weight:700}
+.qty b{font-size:22px;min-width:30px;text-align:center}
+.panel .acts{display:flex;gap:8px;margin-top:18px}
+.panel .acts .btn{flex:1}
+.pre{white-space:pre-wrap;background:var(--chip);border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.55;max-height:46vh;overflow:auto;margin-top:6px}
+
+.gate{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px;text-align:center}
+.gate h2{font-size:19px;margin-bottom:6px}
+.gate p{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5}
+.demo{background:var(--warn-t);color:var(--warn);border-radius:12px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.toast{position:fixed;left:50%;bottom:calc(90px + var(--hub-dock,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hello">
+    <div><small>HUAWEI HUB BY UFICON</small><h1>ST Report</h1></div>
+    <a href="/">กลับหน้าแรก</a>
+  </header>
+
+  <div class="demo" id="demo" hidden>โหมดทดลอง: ยังไม่ได้เชื่อม Google Sheet ข้อมูลเก็บในเครื่องนี้เท่านั้น</div>
+
+  <!-- ยังไม่ได้เข้าสาขา -->
+  <section class="gate" id="gate" hidden>
+    <h2>เข้าสู่ระบบสาขาก่อน</h2>
+    <p>ใช้บัญชีอีเมลร้านและรหัสสาขา<br>เข้าครั้งเดียวใช้ได้ทั้งวัน</p>
+    <a class="btn red" style="display:inline-block;text-decoration:none" href="/login?next=/st-report">ไปหน้าเข้าสู่ระบบ</a>
+    <div id="demoPick" hidden style="margin-top:16px">
+      <select id="demoBranch"></select>
+    </div>
+  </section>
+
+  <main id="app" hidden>
+    <section class="hero">
+      <div class="band"><div><b id="brName">-</b><br><span id="today">-</span></div><button type="button" class="swb" id="swb">เปลี่ยนสาขา</button></div>
+      <div class="body">
+        <div class="seg" id="seg">
+          <button type="button" data-r="1">รอบ 1<small id="r1s">10:00 – 15:00</small></button>
+          <button type="button" data-r="2">รอบ 2<small id="r2s">10:00 – 22:00 (ทั้งวัน)</small></button>
+        </div>
+        <div class="keep" id="keep" hidden></div>
+        <div class="who"><label for="staff">ผู้บันทึก</label><select id="staff"></select></div>
+      </div>
+    </section>
+
+    <div class="label">ขายเครื่อง <span>แตะ + ทุกครั้งที่ขายได้</span></div>
+    <div class="grid" id="devices"></div>
+
+    <div class="label">อุปกรณ์เสริมและบริการ</div>
+    <div class="grid" id="counters"></div>
+
+    <div class="label">บันทึกวันนี้ <span id="listInfo"></span></div>
+    <div class="list" id="list"></div>
+  </main>
+</div>
+
+<div class="bar" id="bar" hidden>
+  <div class="in">
+    <div class="hint" id="barHint"></div>
+    <button class="btn red" id="preview" type="button">ส่งรายงาน</button>
+  </div>
+</div>
+
+<!-- เลือกรุ่น -->
+<div class="sheet" id="pick" hidden>
+  <div class="panel">
+    <h3 id="pickTitle">-</h3>
+    <p>เลือกรุ่น สี และขนาด (ถ้ามี) แล้วกดเพิ่ม</p>
+    <div class="chips" id="pickModels"></div>
+    <div class="field" id="otherWrap" hidden><label>ชื่อรุ่น</label><input id="pickOther" placeholder="พิมพ์ชื่อรุ่น"></div>
+    <div class="field"><label>สี <b style="color:var(--red)" id="colorReq">*</b></label>
+      <input id="pickColor" placeholder="พิมพ์ชื่อสี" autocomplete="off">
+      <div class="chips hintchips" id="pickColorHint"></div></div>
+    <div class="field" id="sizeWrap"><label id="sizeLabel">ขนาด (ถ้ามี)</label><div class="chips" id="pickSizes"></div>
+      <input id="pickSizeOther" placeholder="พิมพ์ขนาด / ความจุ" autocomplete="off" hidden style="margin-top:8px"></div>
+    <div class="field"><label>จำนวน</label><div class="qty"><button type="button" id="qMinus">−</button><b id="qVal">1</b><button type="button" id="qPlus">+</button></div></div>
+    <div class="acts"><button class="btn ghost" type="button" id="pickCancel">ยกเลิก</button><button class="btn red" type="button" id="pickAdd">เพิ่ม</button></div>
+  </div>
+</div>
+
+<!-- ตัวอย่างข้อความ -->
+<div class="sheet" id="share" hidden>
+  <div class="panel">
+    <h3 id="shareTitle">รายงานรอบ 1</h3>
+    <p id="shareSub">ตรวจตัวเลขแล้วกดส่ง ระบบจะบันทึกลงชีตให้ด้วย</p>
+    <div class="pre" id="shareText"></div>
+    <div class="acts">
+      <button class="btn ghost" type="button" id="shareClose">ปิด</button>
+      <button class="btn ghost" type="button" id="shareCopy">คัดลอก</button>
+      <button class="btn line" type="button" id="shareLine">ส่งเข้า LINE</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== ตั้งค่า ===== */
+const ENDPOINT = ''; // URL Web App เดียวกับหน้า /case-log
+const ROUND1_END = '15:00';
+const ROUND_LABEL = {1:'รอบ 1 10:00 - 15:00', 2:'รอบ 2 10:00 - 22:00'};
+const SERVICE_FORM  = 'https://forms.gle/xgjoTrt9ho1vnFZ37';  // ใส่ '' ถ้าไม่ต้องการให้แสดงลิงก์ในข้อความ
+const LOSTSALE_FORM = 'https://forms.gle/CPnqhD8j3sdjYi1Y9';
+const BRANCHES = ['HES-TMN','HMD-HKT','HMD-CCS','HMD-CWN','HES-KBI','HMD-EMQ','HMD-MVH','HMD-KKC','HMD-CNV'];
+const DEMO_STAFF = ['พนักงานทดลอง 1','พนักงานทดลอง 2'];
+
+const IC = {
+  phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+  tablet:'<rect x="4" y="3" width="16" height="18" rx="2.2"/><path d="M11 17.5h2"/>',
+  watch:'<rect x="6.5" y="6.5" width="11" height="11" rx="3"/><path d="M9 6.5 9.6 2.5h4.8l.6 4M9 17.5l.6 4h4.8l.6-4"/>',
+  audio:'<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.6"/>',
+  iot:'<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.6 16a5 5 0 0 1 6.8 0"/><circle cx="12" cy="19.3" r="1"/>',
+  accy:'<path d="M9 2.5v5M15 2.5v5M6.5 7.5h11v4a5.5 5.5 0 0 1-11 0zM12 17v4.5"/>',
+  third:'<path d="M20.5 13.5 13.5 20.5a2 2 0 0 1-2.8 0L3 12.8V3h9.8l7.7 7.7a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+  pre:'<rect x="5" y="3.5" width="14" height="18" rx="2"/><path d="M9 3.5V2h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/>',
+  care:'<path d="M12 2.5 4.5 5.5v6c0 4.8 3.2 8.6 7.5 10 4.3-1.4 7.5-5.2 7.5-10v-6z"/><path d="m8.8 12 2.2 2.2 4.4-4.4"/>',
+  service:'<path d="M14.5 6.5a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/><path d="M14.5 6.5 17 4l3 3-2.5 2.5"/>',
+  lost:'<circle cx="12" cy="12" r="9.5"/><path d="m9 9 6 6M15 9l-6 6"/>'
+};
+const svg = k => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+IC[k]+'</svg>';
+
+// ประเภทที่ต้องเลือกรุ่น (ใช้รายชื่อรุ่นชุดเดียวกับหน้า Fail Case)
+// รุ่นและสี/ความจุที่มีในสต็อก (จากไฟล์ HUAWEI on Stock 16 ต.ค. 69) – รุ่นอื่นกด "รุ่นอื่น" แล้วพิมพ์เอง
+// รูปแบบ: 'ชื่อรุ่น': [[ขนาด/ความจุ...], [สี...]]
+const STOCK = {
+  phone: {
+    'Pura 90s Pro Max': [['512GB'], ['Blaze Purple','Blush Gold','Graphite Black','Orange Ocean']],
+    'Pura 90s Pro':     [['256GB','512GB'], ['Coconut White','Mulberry Black','Guava Soda','Orange Soda']],
+    'nova 14':          [['256GB'], ['Crystal Blue','Black']],
+    'nova 13 Pro':      [['512GB'], ['Loden Green']],
+    'nova Y74':         [['256GB'], ['Black','Blue']],
+    'nova Y73':         [['256GB'], ['Blue']]
+  },
+  tablet: {
+    'MatePad Pro Max 13.2': [['256GB','512GB'], ['Blue','Space Gray']],
+    'MatePad Air':          [['256GB'], ['Blue','White']],
+    'MatePad 12 X (2026)':  [['256GB'], ['Greenery','White']],
+    'MatePad 11.5 (2025)':  [['128GB','256GB'], ['Isle Blue','Violet','Space Gray','Gray']],
+    'MatePad 11.5 S':       [['256GB'], []],
+    'MatePad 11.5 AI Upgrade': [[], []],
+    'MatePad Mini':         [['256GB'], ['Spruce Green','Graphite Black']],
+    'MatePad SE 11':        [['128GB','LTE'], ['Nebula Gray']]
+  },
+  watch: {
+    'Watch Ultimate 2':      [[], ['Blue']],
+    'Watch Ultimate':        [['48mm'], ['Voyage Blue','Expedition Black']],
+    'Watch Ultimate Design': [[], ['Spring Edition']],
+    'Watch 5':               [['46mm'], ['Titanium']],
+    'Watch GT Runner 2':     [['43mm'], ['Black','Gradient Orange','Gradient Blue','Racing Legend']],
+    'Watch GT 7 Pro':        [['46mm'], ['Green','Black','Yellow']],
+    'Watch GT 7':            [['41mm','46mm'], ['Black','Yellow','Blue','Pink','White and Green']],
+    'Watch GT 6 Pro':        [['46mm'], ['Black HONMA']],
+    'Watch GT 6':            [['41mm','46mm'], ['Black','Green','White','Gold']],
+    'Watch GT 5 Pro':        [['42mm'], ['White Ceramic']],
+    'Watch GT 5':            [['41mm','46mm'], ['Black','Blue']],
+    'Watch Fit 5 Pro':       [[], ['Black','White','Gradient Orange']],
+    'Watch Fit 5':           [[], ['Black','White','Purple','Green','Green-Grey']],
+    'Watch Fit 4 Pro':       [[], ['Green']],
+    'Watch Fit 3':           [[], ['Black']],
+    'Watch D2':              [[], ['Black']],
+    'Watch Kids X1 Pro':     [[], ['Black','Purple']],
+    'Watch Kids X1':         [[], ['Blue','Pink']],
+    'Band 11':               [[], ['Black']]
+  },
+  audio: {
+    'FreeBuds Pro 5':    [[], ['Grey','White','Sand']],
+    'FreeBuds Pro 4':    [[], ['Green']],
+    'FreeClip 2 S':      [[], ['Deepsea Blue','Space Silver']],
+    'FreeClip 2':        [[], ['Black','White','Blue','Rose Gold','Berry Purple']],
+    'FreeClip':          [[], ['Beige','Black','Purple']],
+    'FreeArc':           [[], ['Grey','Black']],
+    'FreeBuds SE 4 ANC': [[], ['Black','White']],
+    'FreeBuds SE 2':     [[], ['White']]
+  },
+  // อุปกรณ์เสริม HUAWEI ที่ขาย (ไม่รวมของแถม เช่น ถุงผ้า ร่ม แผ่นรองเมาส์)
+  accy: {
+    'M-Pencil Pro':               [[], ['White']],
+    'M-Pencil (3rd gen)':         [[], []],
+    'M-Pen Lite (MatePad SE 11)': [[], ['Grey']],
+    'Adapter 22.5W':              [[], ['White']],
+    'Adapter 100W':               [[], ['White']],
+    'Wireless Mouse':             [[], ['Grey']],
+    'MatePad Mini Folio Cover':   [[], ['Spruce Green']],
+    'Pura 80 Vegan Leather Case': [[], ['Green']],
+    'Watch Fit 5 Suntur Strap':   [[], ['Blue Green','Green','Red','White','Pink','Yellow']],
+    'EasyCross Strap 22mm':       [[], ['Run (Grey)','Play (Blue)','Walk (White)']],
+    'EasyCross Strap 18mm':       [[], ['Dream (Black)','Dance (Blue)','Step (Blue)']],
+    'EasyFit Strap GT 6':         [['41mm','46mm'], ['Pink','Grey']],
+    'EasyFit 3 Strap':            [[], ['Spruce Green']],
+    'FreeClip 2 Earrings':        [[], ['Star Style']]
+  },
+  iot: {
+    'WiFi Mesh X3 Pro Suite': [[], []],
+    'WiFi Mesh X3 Pro':       [[], []],
+    'WiFi BE3':               [[], ['White']]
+  }
+};
+const DEVICES = [
+  {k:'phone', name:'Phone',  unit:'เครื่อง', emoji:'📱'},
+  {k:'tablet',name:'Tablet', unit:'เครื่อง', emoji:'📝'},
+  {k:'watch', name:'Watch',  unit:'เรือน',  emoji:'⌚'},
+  {k:'audio', name:'Audio',  unit:'ชิ้น',   emoji:'🎧'},
+  {k:'iot',   name:'IoT',    unit:'ชิ้น',   emoji:'📶'}
+].map(d=>Object.assign(d,{models:Object.keys(STOCK[d.k])}));
+// HUAWEI Accy ต้องเลือกรุ่นด้วย (สีไม่บังคับ)
+const ACCY = {k:'accy', name:'HUAWEI Accy', unit:'ชิ้น', colorOptional:true, models:Object.keys(STOCK.accy)};
+const PICKABLE = DEVICES.concat([ACCY]);
+// ประเภทที่กด + ได้เลย (ไม่ต้องเลือกรุ่น)
+const COUNTERS = [
+  {k:'accy',   name:'HUAWEI Accy', unit:'ชิ้น', pick:true},
+  {k:'third',  name:'Third-Party', unit:'ชิ้น'},
+  {k:'pre',    name:'Pre-order',   unit:'คน'},
+  {k:'care',   name:'HUAWEI Care', unit:'ราย'},
+  {k:'service',name:'Service (Walk-in)', unit:'ราย', auto:true},
+  {k:'lost',   name:'ปิดการขายไม่สำเร็จ', unit:'ราย', form:LOSTSALE_FORM}
+];
+const MODEL_OTHER = 'รุ่นอื่น';
+// ขนาด / ความจุ แยกตามประเภท (ไม่บังคับ)
+const SIZES = {
+  phone:  {label:'ความจุ (ถ้ามี)', list:['256GB','512GB','1TB']},
+  tablet: {label:'ความจุ / รุ่นย่อย (ถ้ามี)', list:['128GB','256GB','512GB','Wi-Fi','LTE']},
+  watch:  {label:'ขนาดหน้าปัด (ถ้ามี)', list:['41mm','42mm','46mm','47mm','49mm']}
+};
+const SIZE_OTHER = 'อื่นๆ';
+// ชื่อในรายงาน: รุ่น (ขนาด) สี  เช่น "Watch GT 7 (46mm) Blue"
+const itemName = e => (e.model + (e.size ? ' ('+e.size+')' : '') + (e.color ? ' '+e.color : '') + (!e.size && !e.color && e.variant ? ' '+e.variant : '')).trim();
+
+/* ===== ตัวช่วย ===== */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const hm = d => pad(d.getHours())+':'+pad(d.getMinutes());
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
+// ตัดชื่อเล่นในวงเล็บ เช่น "จักรพงศ์ แซ่อิ้ว (เคน)" -> "จักรพงศ์ แซ่อิ้ว"
+const nick = n => String(n||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+// ใช้การเข้าสู่ระบบร่วมกับหน้า /case-log (เก็บในเครื่องเดียวกัน)
+let settings = Object.assign({branch:'',staff:'',staffList:[],session:'',allowed:[],unlocked:null}, store.get('hcl_settings',{}));
+const saveSettings = () => { const all = store.get('hcl_settings',{}); store.set('hcl_settings', Object.assign(all, {staff:settings.staff, branch:settings.branch})); };
+const today = () => ymd(new Date());
+const verified = () => !!settings.session && !!settings.branch && (settings.allowed||[]).includes(settings.branch)
+  && !!settings.unlocked && settings.unlocked.branch===settings.branch && settings.unlocked.day===today();
+
+let round = new Date().getHours() < 15 ? 1 : 2;
+let remote = [];          // รายการจากชีตของสาขาวันนี้
+let svcCases = [];        // เคสบริการจากหน้า Fail Case (เวลา HH:MM)
+const weekAgo = ymd(new Date(Date.now()-7*864e5));
+let pending = store.get('st_pending', []).filter(e=>e.date>=weekAgo);   // รายการที่เพิ่มในเครื่องนี้แต่ยังไม่ได้ส่ง (เก็บไว้ 7 วัน)
+let deletes = store.get('st_deletes', []);   // id ที่ลบแต่ยังไม่ได้ส่ง
+const persist = () => { store.set('st_pending',pending); store.set('st_deletes',deletes); };
+
+// รายการของสาขาวันนี้ = ชีต + ที่ยังไม่ส่ง − ที่ลบ
+function entries(){
+  const del = new Set(deletes), seen = new Set();
+  const out = [];
+  remote.concat(pending.map(e=>Object.assign({pending:true},e))).forEach(e=>{
+    if(e.branch!==settings.branch || e.date!==today() || del.has(e.id) || seen.has(e.id)) return;
+    seen.add(e.id); out.push(e);
+  });
+  return out.sort((a,b)=>a.time<b.time?-1:a.time>b.time?1:0);
+}
+const inRound = t => round===2 || t <= ROUND1_END;
+const roundEntries = () => entries().filter(e=>inRound(e.time));
+const sumOf = (list,k) => list.filter(e=>e.cat===k).reduce((s,e)=>s+(Number(e.qty)||0),0);
+function modelLines(list,k){
+  const m = {};
+  list.filter(e=>e.cat===k).forEach(e=>{ const key=itemName(e); m[key]=(m[key]||0)+(Number(e.qty)||0); });
+  return Object.keys(m).map(x=>[x,m[x]]);
+}
+const serviceAuto = () => svcCases.filter(t=>inRound(t)).length;
+
+/* ===== แสดงผล ===== */
+function render(){
+  // ยังไม่ได้เข้าสาขาวันนี้ -> ไปหน้าเข้าสู่ระบบกลาง (/login)
+  if(ENDPOINT && !verified() && window.HUB_SWITCH){ (settings.session ? HUB_SWITCH : HUB_LOGOUT)(); return; }
+  const ok = !ENDPOINT || verified();
+  $('demo').hidden = !!ENDPOINT;
+  $('gate').hidden = ok && !!settings.branch;
+  $('demoPick').hidden = !!ENDPOINT;
+  $('app').hidden = !(ok && settings.branch);
+  $('bar').hidden = $('app').hidden;
+  if($('app').hidden) return;
+
+  $('brName').textContent = settings.branch;
+  $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', Number(b.dataset.r)===round));
+  // ส่งแล้วกี่โมง (รอบที่ส่งแล้วยังเปิดดูย้อนหลังได้ รายการไม่หาย)
+  const sent = sentToday();
+  [1,2].forEach(r=>{ const el=$('r'+r+'s'), t=sent[r];
+    el.textContent = t ? 'ส่งแล้ว '+t+' น.' : (r===1 ? '10:00 – 15:00' : '10:00 – 22:00 (ทั้งวัน)'); el.classList.toggle('sent',!!t); });
+  $('keep').hidden = !(sent[1] && round===2);
+  $('keep').textContent = 'รอบ 2 นับต่อจากรอบ 1 (รวมทั้งวัน) รายการของรอบ 1 ยังอยู่ครบ กด "รอบ 1" เพื่อดูยอดที่ส่งไปแล้วได้';
+
+  // รายชื่อทีมจากหน้าตั้งค่า ⚙️ (team.js) — พนักงานสาขานี้ก่อน ตามด้วยทีมที่ดูแลทุกสาขา
+  const staff = ENDPOINT ? (settings.staffList||[]) : (window.hubTeamFor ? window.hubTeamFor(settings.branch) : DEMO_STAFF);
+  const sel = $('staff');
+  sel.innerHTML = '<option value="">เลือกชื่อ</option>'+staff.map(s=>'<option'+(s===settings.staff?' selected':'')+'>'+esc(s)+'</option>').join('');
+  sel.classList.toggle('empty', !settings.staff);
+
+  const list = roundEntries();
+  $('devices').innerHTML = DEVICES.map(d=>{
+    const n = sumOf(list,d.k), lines = modelLines(list,d.k);
+    return '<div class="box"><div class="h"><span class="ic">'+svg(d.k)+'</span>'+d.name+'</div>'+
+      '<div class="num">'+n+'<small>'+d.unit+'</small></div>'+
+      (lines.length ? '<div class="models">'+lines.map(l=>esc(l[0])+' = '+l[1]).join('<br>')+'</div>' : '')+
+      '<div class="ctl"><button type="button" class="add" data-pick="'+d.k+'">+ เพิ่ม</button></div></div>';
+  }).join('');
+
+  $('counters').innerHTML = COUNTERS.map(c=>{
+    const manual = sumOf(list,c.k), auto = c.auto ? serviceAuto() : 0, n = manual+auto;
+    const note = c.auto ? (ENDPOINT ? 'นับจาก Fail Case Service '+auto+' ราย'+(manual?' + เพิ่มเอง '+manual:'')+' · <a href="/case-log">บันทึกเคส</a>' : 'ต่อ Sheet แล้วจะนับจาก Fail Case Service ให้เอง')
+             : c.form ? '<a href="'+esc(c.form)+'" target="_blank" rel="noopener">บันทึกรายละเอียดในฟอร์ม</a>' : '';
+    const lines = c.pick ? modelLines(list,c.k) : [];
+    return '<div class="box'+(c.auto?' auto':'')+'"><div class="h"><span class="ic">'+svg(c.k)+'</span>'+c.name+'</div>'+
+      '<div class="num">'+n+'<small>'+c.unit+'</small></div>'+
+      (lines.length ? '<div class="models">'+lines.map(l=>esc(l[0])+' = '+l[1]).join('<br>')+'</div>' : '')+
+      (note?'<div class="note">'+note+'</div>':'')+
+      (c.pick ? '<div class="ctl"><button type="button" class="add" data-pick="'+c.k+'">+ เพิ่ม</button></div></div>'
+              : '<div class="ctl"><button type="button" data-minus="'+c.k+'"'+(manual?'':' disabled')+'>−</button><button type="button" class="add" data-plus="'+c.k+'">+</button></div></div>');
+  }).join('');
+
+  const all = entries();
+  $('listInfo').textContent = all.length ? all.length+' รายการ' : '';
+  $('list').innerHTML = all.length ? all.slice().reverse().map(e=>{
+    const d = PICKABLE.find(x=>x.k===e.cat), c = COUNTERS.find(x=>x.k===e.cat);
+    const name = d && e.model ? d.name+' · '+itemName(e) : (c?c.name:d?d.name:e.cat);
+    return '<div class="row'+(e.pending?' pending':'')+'"><time>'+esc(e.time)+'</time><div class="t">'+esc(name)+'<small>'+esc(e.staff||'-')+'</small></div>'+
+      '<span class="q">×'+e.qty+'</span><button type="button" class="del" data-del="'+esc(e.id)+'" aria-label="ลบ">×</button></div>';
+  }).join('') : '<div class="empty">ยังไม่มีรายการวันนี้ แตะ + ที่ช่องด้านบนเมื่อขายได้</div>';
+
+  const waiting = pending.length + deletes.length;
+  $('barHint').textContent = !settings.staff ? 'เลือกชื่อผู้บันทึกก่อน'
+    : (round===1 ? 'รอบ 1 ส่งหลัง 15:00' : 'รอบ 2 ส่งตอนปิดร้าน') + (waiting ? ' · รอส่งขึ้นชีต '+waiting+' รายการ' : '');
+}
+
+/* ===== เพิ่ม / ลบ ===== */
+function add(cat, model, opt, qty){
+  opt = opt || {};
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  const now = new Date();
+  pending.push({id:uid(), ts:now.toISOString(), date:ymd(now), time:hm(now), branch:settings.branch, cat, model:model||'', color:opt.color||'', size:opt.size||'', qty:qty||1, staff:settings.staff});
+  persist(); render(); sync();
+}
+function removeLast(cat){
+  const mine = entries().filter(e=>e.cat===cat && inRound(e.time));
+  const last = mine[mine.length-1]; if(last) del(last.id);
+}
+function del(id){
+  const i = pending.findIndex(e=>e.id===id);
+  if(i>=0) pending.splice(i,1); else if(!deletes.includes(id)) deletes.push(id);
+  persist(); render(); sync();
+}
+
+/* ===== เลือกรุ่น ===== */
+let pickCat = null, pickModel = '', pickQty = 1, pickSize = '';
+function openPick(k){
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  const d = PICKABLE.find(x=>x.k===k); pickCat=k; pickModel=''; pickQty=1;
+  $('colorReq').hidden = !!d.colorOptional;
+  $('pickTitle').textContent = 'เพิ่ม '+d.name;
+  pickSize=''; $('pickColor').value=''; $('pickSizeOther').value=''; $('pickOther').value='';
+  drawPick(); $('pick').hidden=false;
+}
+function drawPick(){
+  const d = PICKABLE.find(x=>x.k===pickCat);
+  $('pickModels').innerHTML = d.models.concat([MODEL_OTHER]).map(m=>'<button type="button" class="chip'+(m===pickModel?' on':'')+'" data-m="'+esc(m)+'">'+esc(m)+'</button>').join('');
+  $('otherWrap').hidden = pickModel!==MODEL_OTHER;
+  // ขนาด/ความจุ: ใช้ของรุ่นนั้นจากสต็อกก่อน ถ้าไม่มีใช้ค่าทั่วไปของประเภท
+  const st = (STOCK[pickCat]||{})[pickModel] || [[],[]];
+  const sz = SIZES[pickCat], sizes = st[0].length ? st[0] : (sz ? sz.list : []);
+  $('sizeWrap').hidden = !sz && !st[0].length;
+  if(!$('sizeWrap').hidden){ $('sizeLabel').textContent = sz ? sz.label : 'ขนาด (ถ้ามี)';
+    $('pickSizes').innerHTML = sizes.concat([SIZE_OTHER]).map(x=>'<button type="button" class="chip'+(x===pickSize?' on':'')+'" data-s="'+esc(x)+'">'+esc(x)+'</button>').join(''); }
+  // สีที่มีในสต็อกของรุ่นนี้ แตะเพื่อเติมในช่อง (พิมพ์เองได้เสมอ)
+  const cur = colorValue();
+  $('pickColorHint').innerHTML = st[1].map(c=>'<button type="button" class="chip'+(c===cur?' on':'')+'" data-hc="'+esc(c)+'">'+esc(c)+'</button>').join('');
+  $('pickSizeOther').hidden = pickSize!==SIZE_OTHER;
+  $('qVal').textContent = pickQty;
+  $('pickAdd').disabled = !pickModel || (pickModel===MODEL_OTHER && !$('pickOther').value.trim()) || (!d.colorOptional && !colorValue());
+}
+
+const sizeValue = () => pickSize===SIZE_OTHER ? $('pickSizeOther').value.replace(/\s+/g,' ').trim() : pickSize;
+const colorValue = () => $('pickColor').value.replace(/\s+/g,' ').trim();
+
+/* ===== ข้อความ LINE ===== */
+function report(){
+  const list = roundEntries(), d = new Date();
+  const dateTxt = pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(-2);
+  const L = [];
+  L.push('📆 Date: '+dateTxt, '🕛 ST Period: '+ROUND_LABEL[round], '🏬 Branch: '+settings.branch, '', 'Device ST Report');
+  DEVICES.forEach(x=>{
+    L.push(x.emoji+' '+x.name+' : '+sumOf(list,x.k)+' '+x.unit);
+    modelLines(list,x.k).forEach(l=>L.push('•'+l[0]+' = '+l[1]));
+  });
+  L.push('', '💫 Accessories', 'HUAWEI Accy = '+sumOf(list,'accy')+' ชิ้น');
+  modelLines(list,'accy').forEach(l=>L.push('•'+l[0]+' = '+l[1]));
+  L.push('Third-Party = '+sumOf(list,'third')+' ชิ้น', '');
+  L.push('✍🏻 Pre-order : '+sumOf(list,'pre')+' คน', '🛡️ HUAWEI Care : '+sumOf(list,'care')+' ราย');
+  L.push('🔧 Service (Walk-in) : '+(sumOf(list,'service')+serviceAuto())+' ราย');
+  if(SERVICE_FORM) L.push('(อย่าลืมบันทึกข้อมูลที่: '+SERVICE_FORM+')');
+  L.push('', '❌ เคสที่ปิดการขายไม่สำเร็จ', 'จำนวนเคสทั้งหมด : '+sumOf(list,'lost')+' ราย');
+  if(LOSTSALE_FORM) L.push('(อย่าลืมบันทึกข้อมูลที่: '+LOSTSALE_FORM+')');
+  L.push('', '✍🏻 '+nick(settings.staff)+' (ผู้บันทึกข้อมูล)');
+  return L.join('\n');
+}
+function totals(){
+  const list = roundEntries(), o = {};
+  DEVICES.concat(COUNTERS).forEach(x=>o[x.k]=sumOf(list,x.k));
+  o.service += serviceAuto();
+  PICKABLE.forEach(x=>o[x.k+'Models']=modelLines(list,x.k).map(l=>l[0]+' = '+l[1]).join(' | '));
+  return o;
+}
+let shareText = '';
+function openShare(){
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  if(round===1 && hm(new Date()) < ROUND1_END) toast('ยังไม่ถึง 15:00 ตัวเลขจะนับถึงตอนนี้');
+  shareText = report();
+  $('shareTitle').textContent = 'รายงาน'+ROUND_LABEL[round].replace(/^รอบ (\d).*/,' รอบ $1');
+  $('shareSub').textContent = ENDPOINT ? 'กดคัดลอกหรือส่งเข้า LINE ระบบจะบันทึกรายงานรอบนี้ลงชีตให้ด้วย' : 'โหมดทดลอง: ยังไม่บันทึกลงชีต';
+  $('shareText').textContent = shareText; $('share').hidden=false;
+}
+let reportQueue = store.get('st_reports', []);
+// รอบที่ส่งแล้ววันนี้: {1:'15:05', 2:'21:58'} รวมจากเครื่องนี้และจากชีต
+let sentRemote = {};
+function sentToday(){
+  const local = store.get('st_sent',{}), out = Object.assign({}, sentRemote);
+  [1,2].forEach(r=>{ const k=settings.branch+'|'+today()+'|'+r; if(local[k] && (!out[r] || local[k]>out[r])) out[r]=local[k]; });
+  return out;
+}
+function queueReport(){
+  const sent = store.get('st_sent',{}), wk = ymd(new Date(Date.now()-7*864e5));
+  Object.keys(sent).forEach(k=>{ if(k.split('|')[1] < wk) delete sent[k]; });
+  sent[settings.branch+'|'+today()+'|'+round] = hm(new Date()); store.set('st_sent', sent); render();
+  const key = settings.branch+'|'+today()+'|'+round;
+  reportQueue = reportQueue.filter(r=>r.key!==key);
+  reportQueue.push({key, branch:settings.branch, date:today(), round, at:new Date().toISOString(), staff:settings.staff, totals:totals(), text:shareText});
+  store.set('st_reports', reportQueue); sync();
+}
+async function copy(t){
+  try{ await navigator.clipboard.writeText(t); return true; }catch(e){}
+  const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){} ta.remove(); return ok;
+}
+
+/* ===== เชื่อมชีต ===== */
+let seq = 0;
+function jsonp(params, ok, fail){
+  const cb='__st'+(++seq), s=document.createElement('script');
+  const done=()=>{ delete window[cb]; s.remove(); };
+  const t=setTimeout(()=>{ done(); fail&&fail(); }, 20000);
+  window[cb]=res=>{ clearTimeout(t); done(); ok(res); };
+  s.onerror=()=>{ clearTimeout(t); done(); fail&&fail(); };
+  s.src=ENDPOINT+(ENDPOINT.includes('?')?'&':'?')+new URLSearchParams(Object.assign({callback:cb},params));
+  document.body.appendChild(s);
+}
+function load(){
+  if(!ENDPOINT || !verified()) return;
+  jsonp({action:'today', session:settings.session, branch:settings.branch, date:today()}, res=>{
+    if(!res || !res.ok){ if(res && (res.error==='auth'||res.error==='locked')){ settings.unlocked=null; render(); } return; }
+    remote = (res.st||[]).map(e=>Object.assign(e,{date:today()}));
+    sentRemote = res.stSent || {};
+    svcCases = (res.cases||[]).map(c=>c.time||'').filter(Boolean);
+    settings.staffList = res.staff||settings.staffList;
+    render();
+  });
+}
+let syncing = false;
+async function sync(){
+  if(!ENDPOINT || !verified() || syncing) return;
+  if(!pending.length && !deletes.length && !reportQueue.length) return;
+  syncing = true;
+  const sent = {e:pending.slice(), d:deletes.slice(), r:reportQueue.slice()};
+  try{
+    const res = await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({session:settings.session, st:{entries:sent.e, deletes:sent.d, reports:sent.r}})}).then(r=>r.json());
+    if(res && res.ok && res.st){
+      const okE = new Set(res.st.accepted||[]), okD = new Set(res.st.deleted||[]), okR = new Set(res.st.reports||[]);
+      remote = remote.concat(pending.filter(e=>okE.has(e.id))).filter(e=>!okD.has(e.id));
+      pending = pending.filter(e=>!okE.has(e.id)); deletes = deletes.filter(id=>!okD.has(id));
+      reportQueue = reportQueue.filter(r=>!okR.has(r.key)); store.set('st_reports', reportQueue);
+      persist(); render();
+    }
+  }catch(e){}
+  syncing = false;
+}
+
+let tt; function toast(m){ const el=$('toast'); el.textContent=m; el.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('on'),2200); }
+
+/* ===== ปุ่ม ===== */
+document.addEventListener('click', e=>{
+  const t = e.target.closest('button'); if(!t) return;
+  if(t.dataset.r){ round=Number(t.dataset.r); render(); }
+  else if(t.dataset.pick) openPick(t.dataset.pick);
+  else if(t.dataset.plus){ add(t.dataset.plus,'','',1); }
+  else if(t.dataset.minus) removeLast(t.dataset.minus);
+  else if(t.dataset.del){ const e2=entries().find(x=>x.id===t.dataset.del); if(e2 && confirmDel(e2)) del(e2.id); }
+  else if(t.dataset.m){ if(pickModel!==t.dataset.m){ pickSize=''; $('pickSizeOther').value=''; } pickModel=t.dataset.m; drawPick();
+    // มีสีในสต็อกให้แตะ -> ไม่เปิดคีย์บอร์ดบังปุ่มสี
+    if(pickModel===MODEL_OTHER) $('pickOther').focus(); else if(!((STOCK[pickCat]||{})[pickModel]||[[],[]])[1].length) $('pickColor').focus(); }
+  else if(t.dataset.hc){ $('pickColor').value = t.dataset.hc; drawPick(); }
+  else if(t.dataset.s){ pickSize = pickSize===t.dataset.s ? '' : t.dataset.s; drawPick(); if(pickSize===SIZE_OTHER) $('pickSizeOther').focus(); }
+});
+function confirmDel(e){ return true; } // ลบได้ทันที (ไม่ใช้กล่องยืนยันของเบราว์เซอร์)
+$('staff').onchange = e=>{ settings.staff=e.target.value; saveSettings(); render(); };
+$('qMinus').onclick=()=>{ pickQty=Math.max(1,pickQty-1); drawPick(); };
+$('qPlus').onclick=()=>{ pickQty=Math.min(99,pickQty+1); drawPick(); };
+$('pickOther').oninput=drawPick;
+$('pickColor').oninput=drawPick;
+$('pickSizeOther').addEventListener('keydown',e=>{ if(e.key==='Enter' && !$('pickAdd').disabled) $('pickAdd').click(); });
+$('pickColor').addEventListener('keydown',e=>{ if(e.key==='Enter' && !$('pickAdd').disabled) $('pickAdd').click(); });
+$('pickCancel').onclick=()=>{ $('pick').hidden=true; };
+$('pickAdd').onclick=()=>{
+  const m = pickModel===MODEL_OTHER ? $('pickOther').value.trim() : pickModel;
+  const opt = {color:colorValue(), size:sizeValue()};
+  add(pickCat, m, opt, pickQty); $('pick').hidden=true; toast('เพิ่ม '+itemName(Object.assign({model:m},opt))+' ×'+pickQty);
+};
+$('preview').onclick=openShare;
+$('swb').onclick=()=>{ if(window.HUB_SWITCH) HUB_SWITCH(); else location.href='/login?switch=1&next=/st-report'; };
+$('shareClose').onclick=()=>{ $('share').hidden=true; };
+$('shareCopy').onclick=async()=>{ queueReport(); toast(await copy(shareText)?'คัดลอกแล้ว วางในกลุ่ม LINE ได้เลย':'คัดลอกไม่ได้ ลองกดค้างที่ข้อความ'); };
+$('shareLine').onclick=()=>{ queueReport(); copy(shareText); location.href='https://line.me/R/share?text='+encodeURIComponent(shareText); };
+['pick','share'].forEach(id=>$(id).addEventListener('click',e=>{ if(e.target.id===id) $(id).hidden=true; }));
+
+// สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้ (เหมือน Service Case)
+try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb) && hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } }catch(e){}
+// โหมดทดลอง: เลือกสาขาเอง
+if(!ENDPOINT){
+  $('demoBranch').innerHTML='<option value="">เลือกสาขา (ทดลอง)</option>'+BRANCHES.map(b=>'<option'+(b===settings.branch?' selected':'')+'>'+b+'</option>').join('');
+  $('demoBranch').onchange=e=>{ settings.branch=e.target.value; saveSettings(); render(); };
+}
+
+render(); load(); sync();
+setInterval(()=>{ load(); sync(); }, 60000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ load(); sync(); } });
+window.addEventListener('online', sync);
+</script>
+<script src="/hub-nav.js"></script>
+</body>
+</html>

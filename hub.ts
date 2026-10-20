@@ -40,6 +40,8 @@ const SEED_APPS: Omit<App, "id">[] = [
   { icon: "tool", name: "Service Case", desc: "บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ", url: "/case-log", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true },
   { icon: "chart", name: "Checklist Report Dashboard", desc: "สรุปคะแนน Checklist ทุกสาขา (เฉพาะผู้มีสิทธิ์)", url: "/report-dashboard", audience: "ผู้ดูแล", moment: "รายงาน", due: "", active: true },
 ]
+// ST Report (Antt, 20 Oct 2026) — added to the menu by a one-time migration (see loadAll).
+const ST_REPORT_APP: Omit<App, "id"> = { icon: "file", name: "ST Report", desc: "กด + ทุกครั้งที่ขายได้ ส่งรายงานรอบ 15:00 และปิดร้าน", url: "/st-report", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
 // = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
 const SEED_LOGINS: [string, string][] = [
   ["benyapakamonphan@gmail.com", "เจ้าของระบบ"], ["marketing.uficon@gmail.com", ""], ["th.verapat@gmail.com", "วีรภัทร (หนึ่ง) · HOHW"],
@@ -117,9 +119,28 @@ async function loadAll(): Promise<{ apps: App[]; staff: Staff[]; logins: Login[]
   return { apps, staff, logins, log }
 }
 
+// Once (called from initHub only, so it can't run twice at the same time): put ST Report right after
+// Service Case; accounts that have Service Case get it too. The marker keeps it from coming back if the
+// owner removes it on ⚙️ later.
+async function migrateStReport() {
+  const { apps, logins, log } = await loadAll()
+  if (!(await store.get("mig_st_report"))) {
+    if (!apps.some(a => a.url === ST_REPORT_APP.url)) {
+      const id = Math.max(0, ...apps.map(a => a.id)) + 1
+      const svc = apps.find(a => a.url === "/case-log")
+      apps.splice(svc ? apps.indexOf(svc) + 1 : apps.length, 0, { id, ...ST_REPORT_APP })
+      for (const l of logins) if (Array.isArray(l.menus) && svc && l.menus.includes(svc.id) && !l.menus.includes(id)) l.menus.push(id)
+      log.unshift({ at: nowTH(), by: "ระบบ", op: "เพิ่มแอป", detail: ST_REPORT_APP.name })
+      await store.set("apps", apps); await store.set("logins", logins); await store.set("log", log.slice(0, 300))
+      console.log("[hub] added ST Report to the menu (id " + id + ")")
+    }
+    await store.set("mig_st_report", true)
+  }
+}
+
 export async function initHub() {
   try {
-    await loadAll()
+    await locked(migrateStReport)
     // Read back from storage (not the seed in memory) so a broken round-trip shows up here.
     const apps = await store.get("apps"), staff = await store.get("staff")
     if (!Array.isArray(apps) || !Array.isArray(staff)) throw new Error(`read-back types: apps ${typeof apps}, staff ${typeof staff}`)

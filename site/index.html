@@ -471,8 +471,10 @@ $('guide').addEventListener('click',e=>{ if(e.target.id==='guide') $('guide').hi
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('guide').hidden=true; });
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-/* ปุ่มฟันเฟือง ⚙️ (หน้าตั้งค่า): เห็นเฉพาะเจ้าของระบบ — หน้า /admin ตรวจสิทธิ์ที่เซิร์ฟเวอร์อีกชั้น */
-function renderGear(){ document.querySelector('.gear').hidden = !(user && user.isOwner); }
+/* ปุ่มฟันเฟือง ⚙️: เปิดแผ่น "ตั้งค่า" ของแถบเมนูล่าง (บัญชี · สาขา · ผู้บันทึก · เปลี่ยนสาขา · ออกจากระบบ ·
+   "จัดการพอร์ทัล" เฉพาะเจ้าของระบบ) — ถ้าแถบเมนูโหลดไม่ได้ ปุ่มพาไปหน้า /admin ตามเดิม (ตรวจสิทธิ์ที่เซิร์ฟเวอร์อีกชั้น) */
+function renderGear(){ document.querySelector('.gear').hidden = !(user && (user.isOwner || window.HUB_SETTINGS)); }
+document.querySelector('.gear').addEventListener('click', e=>{ if(window.HUB_SETTINGS){ e.preventDefault(); window.HUB_SETTINGS(); } });
 
 /* ===== เข้าสู่ระบบด้วย Google — ต้องผ่านก่อนเข้าหน้าแรก =====
    เข้าได้เฉพาะเจ้าของระบบ + อีเมลในหน้าตั้งค่า ⚙️ > "สิทธิ์อีเมล" (เซิร์ฟเวอร์ตรวจ token กับ Google แล้วตอบ allowed)
@@ -525,18 +527,28 @@ $('gateBranch').addEventListener('change', ()=>{
   if(hubBranch && window.google && google.accounts && google.accounts.id) google.accounts.id.prompt();
 });
 function openBranchChange(){ changingBranch = true; $('gateBranch').value = hubBranch || ''; $('gate').hidden = false; gateMsg(''); renderGateStep(); }
-$('gateCancel').onclick = ()=>{ changingBranch = false; $('gate').hidden = true; renderGateStep(); };
+$('gateCancel').onclick = ()=>{ changingBranch = false; $('gate').hidden = true; renderGateStep(); goNext(); };
 $('gateOk').onclick = ()=>{
   if(!$('gateBranch').value) return gateMsg('เลือกสาขาก่อน', true);
   hubBranch = $('gateBranch').value; store.set('hub_branch', hubBranch);
-  changingBranch = false; $('gate').hidden = true; renderGateStep(); renderAcct();
+  changingBranch = false; $('gate').hidden = true; renderGateStep(); renderAcct(); goNext();
 };
 
+/* มาจากหน้าอื่น (แถบเมนูล่าง / auth-guard): ?next=/st-report = กลับไปหน้านั้นหลังเข้าสู่ระบบ/เปลี่ยนสาขา · ?switch=branch = เปิดเปลี่ยนสาขา */
+const QS = new URLSearchParams(location.search);
+function goNext(){
+  const n = QS.get('next');
+  if(n && /^\/(?!\/)/.test(n) && n !== '/'){ location.replace(n); return true; }
+  if(QS.has('next') || QS.has('switch')) history.replaceState(null, '', '/');
+  return false;
+}
 function gateMsg(msg, err){ $('gateMsg').textContent = msg || ''; $('gateMsg').classList.toggle('err', !!err); }
 function showGate(msg, err){ changingBranch = false; $('gate').hidden = false; gateMsg(msg, err); renderGateStep(); }
 function applyAccess(p, d){
   user = {email: d.email, name: (p && p.name) || d.email, picture: (p && p.picture) || '', isOwner: !!d.isOwner, canDashboard: !!d.canDashboard, menus: Array.isArray(d.menus) ? d.menus : []};
-  store.set('hub_user', user); $('gate').hidden = true; renderAcct(); render(); checkReminders();
+  const wasGate = !$('gate').hidden && !changingBranch;
+  store.set('hub_user', user); if(!changingBranch) $('gate').hidden = true; renderAcct(); render(); checkReminders();
+  if(wasGate && !QS.has('switch')) goNext();   // เพิ่งเข้าสู่ระบบ: กลับไปหน้าที่ตั้งใจจะเปิด
 }
 function deny(email){
   const keep = email;
@@ -598,10 +610,12 @@ if(!user){ $('gate').hidden = false; renderGateStep(); }   // ยังไม่
 /* ===== เริ่ม ===== */
 const cached = store.get('hub_apps',null); if(cached && cached.length) APPS=cached;
 tick(); renderAcct(); render(); checkReminders(); loadApps();
+if(user && QS.get('switch') === 'branch') openBranchChange();
 if(window.__gisLoaded || (window.google && google.accounts && google.accounts.id)) gisReady(); // สคริปต์ Google โหลดเสร็จก่อนหน้านี้
 setInterval(tick, 10000);
 setInterval(()=>{ render(); checkReminders(); }, 30000);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ render(); checkReminders(); } });
 </script>
+<script src="/hub-nav.js"></script>
 </body>
 </html>

@@ -8,6 +8,12 @@ Static pages (files supplied by Antt, 2026-10-07):
 | `/case-log` | `site/case-log.html` (huawei-case-log_3.html) | Service Case — log store service cases (demo mode until `ENDPOINT` is set) |
 | `/checklist` | `site/checklist.html` (huawei-morning-checklist.html) | Morning Store Checklist (daily) |
 | `/report-dashboard` | `site/report-dashboard.html` | Report Dashboard (Google sign-in, allow-list) |
+| `/st-report` | `site/st-report.html` (st-report_2.html, Antt 2026-10-20) | ST Report — sales tally per round (demo mode until `ENDPOINT` is set) |
+
+Shared scripts: `site/hub-nav.js` — bottom bar on every page (หน้าแรก · เครื่องมือ = the portal
+menu from `/api/hub/apps` filtered by the account's menus · แดชบอร์ด · ตั้งค่า = account / branch /
+recorder / change branch / sign out / จัดการพอร์ทัล for the owner); sets `--hub-dock` for pages with
+their own bottom bar. `site/auth-guard.js` — sends a device that isn't signed in to `/?next=…`.
 
 Served by a small Bun server (`server.ts`, see `Dockerfile`) — same clean URLs as
 before, plus `POST /api/rewrite` (AI Rewrite button on the checklist; calls the
