@@ -59,15 +59,26 @@
     try { return localStorage.getItem('checklist-inspector') || ''; } catch (e) { return ''; }
   }
 
+  // Same look on every page: the bar and sheets use the portal font and sizes, whatever the page uses
+  // (Service Case is in TH Sarabun New, smaller — Antt, 20 Oct 2026).
+  if (!document.querySelector('link[href*="IBM+Plex+Sans+Thai"]')) {
+    var fl = document.createElement('link');
+    fl.rel = 'stylesheet';
+    fl.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap';
+    document.head.appendChild(fl);
+  }
+  var FONT = "'IBM Plex Sans Thai',-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif";
   var css = '' +
+    '.hubnav,.hubnav *,.hubsheet,.hubsheet *{font-family:' + FONT + ';letter-spacing:normal;-webkit-text-size-adjust:100%;text-size-adjust:100%;box-sizing:border-box}' +
+    '.hubsheet{font-size:15px;line-height:1.4;color:#1D1D1F}' +
     '.hubnav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:45;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;' +
-    'width:min(calc(100% - 24px),460px);background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid #E6E6EB;border-radius:26px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.12);font-family:inherit}' +
+    'width:min(calc(100% - 24px),460px);background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid #E6E6EB;border-radius:26px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.12);line-height:1.2}' +
     '.hubnav[hidden]{display:none}' +
-    '.hubnav a,.hubnav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;border:0;background:none;border-radius:20px;color:#3A3A3F;font:inherit;font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
+    '.hubnav a,.hubnav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;border:0;background:none;border-radius:20px;color:#3A3A3F;font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
     '.hubnav svg{width:23px;height:23px}' +
     '.hubnav .on{background:#FDE7E8;color:#C7000B;font-weight:700}' +
     'body{padding-bottom:var(--hub-dock,0px)}' +
-    '.hubsheet{position:fixed;inset:0;z-index:70;background:rgba(20,20,22,.38);display:flex;align-items:flex-end;justify-content:center;font-family:inherit}' +
+    '.hubsheet{position:fixed;inset:0;z-index:70;background:rgba(20,20,22,.38);display:flex;align-items:flex-end;justify-content:center}' +
     '.hubsheet[hidden]{display:none}' +
     '.hubsheet .pane{width:100%;max-width:560px;max-height:82vh;overflow:auto;background:#F5F5F7;border-radius:26px 26px 0 0;padding:10px 16px calc(22px + env(safe-area-inset-bottom));animation:hubUp .22s ease-out}' +
     '@keyframes hubUp{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}' +
@@ -75,7 +86,7 @@
     '.hubsheet h3{font-size:21px;font-weight:700;margin:0 4px 12px;color:#1D1D1F}' +
     '.hubsheet .lab{font-size:13px;color:#6E6E73;margin:0 6px 6px}' +
     '.hubsheet .list{background:#fff;border:1px solid #E6E6EB;border-radius:20px;overflow:hidden}' +
-    '.hubsheet .row{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border:0;background:none;text-align:left;color:#1D1D1F;text-decoration:none;font:inherit;cursor:pointer}' +
+    '.hubsheet .row{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border:0;background:none;text-align:left;color:#1D1D1F;text-decoration:none;font-size:15px;cursor:pointer}' +
     '.hubsheet .row+.row{border-top:1px solid #EDEDF0}' +
     '.hubsheet .row .ic{flex:0 0 40px;height:40px;border-radius:12px;background:#FDECEC;color:#C7000B;display:flex;align-items:center;justify-content:center}' +
     '.hubsheet .row .ic svg{width:21px;height:21px}' +
@@ -127,7 +138,9 @@
     return '<h3>ตั้งค่า</h3><div class="lab">บัญชี</div><div class="list">' +
       '<div class="row static"><span class="ic">' + svg('user') + '</span><span class="tx"><b>' + esc(u.email || '-') + '</b>' +
       '<small>สาขา ' + esc(branch()) + (rec ? ' · ' + esc(rec) : '') + (u.isOwner ? ' · เจ้าของระบบ' : u.canDashboard ? ' · ผู้ดูแล' : '') + '</small></span></div>' +
-      '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>' +
+      (u.branch
+        ? '<div class="row static"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>สาขา ' + esc(u.branch) + '</b><small>ล็อกตามอีเมลของสาขา (ทีม HOHW เท่านั้นที่เลือกสาขาได้)</small></span></div>'
+        : '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>') +
       (u.isOwner || u.canDashboard ? '<button class="row" type="button" data-a="xlsx"><span class="ic">' + svg('file') + '</span><span class="tx"><b>ดาวน์โหลดรายงาน (Excel)</b><small>Service Case · ST Report ย้อนหลัง แยกตามสาขา</small></span><span class="chev">›</span></button>' : '') +
       (u.isOwner ? '<a class="row" href="/admin"><span class="ic">' + svg('sliders') + '</span><span class="tx"><b>จัดการพอร์ทัล</b><small>เมนู · รายชื่อทีม · สิทธิ์อีเมล (เฉพาะผู้ดูแล)</small></span><span class="chev">›</span></a>' : '') +
       '<button class="row red" type="button" data-a="out"><span class="ic">' + svg('logout') + '</span><span class="tx"><b>ออกจากระบบ</b></span><span class="chev">›</span></button>' +
@@ -151,6 +164,8 @@
   // Change branch: the portal page has the branch picker; elsewhere go there and come back.
   function switchBranch() {
     close();
+    var u = user();
+    if (u && u.branch) return;   // branch account: locked to its branch
     if (typeof window.openBranchChange === 'function') return window.openBranchChange();
     location.href = '/?switch=branch&next=' + encodeURIComponent(location.pathname + location.search);
   }

@@ -19,7 +19,7 @@ const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.
 const bkkToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const key = (app: "case" | "st", branch: string, day: string) => `rec:${app}:${branch}:${day}`
 
-type Who = { email: string; isOwner: boolean; canDashboard: boolean; menus: string[] }
+type Who = { email: string; isOwner: boolean; canDashboard: boolean; menus: string[]; branch: string | null }
 // Signed-in device + this email may use the page (owner: everything).
 async function who(req: Request, needUrl: string | null): Promise<Who | Response> {
   const email = await sessionEmail(req)
@@ -28,7 +28,7 @@ async function who(req: Request, needUrl: string | null): Promise<Who | Response
   if (!a.allowed) return json({ ok: false, error: "auth" }, 401)
   const menus = a.menus ?? []
   if (needUrl === "admin" ? !(a.isOwner || a.canDashboard) : needUrl && !a.isOwner && !menus.includes(needUrl)) return json({ ok: false, error: "forbidden" }, 403)
-  return { email, isOwner: a.isOwner, canDashboard: a.canDashboard, menus }
+  return { email, isOwner: a.isOwner, canDashboard: a.canDashboard, menus, branch: a.branch }
 }
 
 /* ---------------- Service Case ---------------- */
@@ -157,6 +157,7 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
     if (req.method === "GET") {
       const branch = url.searchParams.get("branch") ?? "", day = url.searchParams.get("date") ?? ""
       if (!BRANCH_CODES.has(branch) || !DAY.test(day)) return json({ ok: false, error: "bad request" }, 400)
+      if (w.branch && branch !== w.branch) return json({ ok: false, error: "branch", branch: w.branch }, 403)   // locked to its own branch
       const cases = (await caseDay(branch, day)).cases
       if (app === "case") return json({ ok: true, cases: cases.slice().sort((a, b) => (b.ts || "").localeCompare(a.ts || "") || a.caseNo - b.caseNo) })
       const st = await stDay(branch, day)
@@ -167,10 +168,15 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
     }
     if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
     let b: any; try { b = await req.json() } catch { return json({ ok: false, error: "bad request" }, 400) }
+    // An account locked to a branch can only write that branch (anything else is dropped, not retried).
+    const mine = (x: any) => !w.branch || x?.branch === w.branch
 
     if (app === "case") {
-      const incoming = (Array.isArray(b?.cases) ? b.cases : []).slice(0, MAX_ITEMS).map((c: any) => cleanCase(c, w.email)).filter(Boolean)
-      const updates = (Array.isArray(b?.updates) ? b.updates : []).slice(0, MAX_ITEMS)
+      const raw = (Array.isArray(b?.cases) ? b.cases : []).slice(0, MAX_ITEMS)
+      const incoming = raw.filter(mine).map((c: any) => cleanCase(c, w.email)).filter(Boolean)
+      const allUpdates = (Array.isArray(b?.updates) ? b.updates : []).slice(0, MAX_ITEMS)
+      const updates = allUpdates.filter(mine)
+      const rejected = [...raw, ...allUpdates].filter((x: any) => !mine(x)).map((x: any) => String(x?.id ?? ""))
       const accepted: string[] = [], updated: string[] = []
       await locked(async () => {
         const byKey = new Map<string, any[]>()
@@ -193,17 +199,20 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
           if (!updated.includes(u.id)) updated.push(u.id)   // gone / unknown: nothing to retry
         }
       })
-      console.log(`[rec] case +${accepted.length} ~${updated.length} by ${w.email}`)
-      return json({ ok: true, accepted, updated })
+      console.log(`[rec] case +${accepted.length} ~${updated.length}${rejected.length ? ` (other branch dropped ${rejected.length})` : ""} by ${w.email}`)
+      return json({ ok: true, accepted: [...accepted, ...rejected], updated: [...updated, ...rejected] })
     }
 
     // ST Report
     const st = b?.st ?? {}
-    const entries = (Array.isArray(st.entries) ? st.entries : []).slice(0, MAX_ITEMS).map((e: any) => cleanEntry(e, w.email)).filter(Boolean)
+    const rawEntries = (Array.isArray(st.entries) ? st.entries : []).slice(0, MAX_ITEMS)
+    const dropped = rawEntries.filter((e: any) => !mine(e)).map((e: any) => String(e?.id ?? ""))
+    const entries = rawEntries.filter(mine).map((e: any) => cleanEntry(e, w.email)).filter(Boolean)
     const deletes = (Array.isArray(st.deletes) ? st.deletes : []).slice(0, MAX_ITEMS).map(String).filter((x: string) => ID.test(x))
-    const reports = (Array.isArray(st.reports) ? st.reports : []).slice(0, 50).map((r: any) => cleanReport(r, w.email)).filter(Boolean)
-    const ctxBranch = BRANCH_CODES.has(b?.branch) ? b.branch : "", ctxDay = DAY.test(String(b?.date)) ? b.date : bkkToday()
-    const res = { accepted: [] as string[], deleted: [] as string[], reports: [] as string[] }
+    const rawReports = (Array.isArray(st.reports) ? st.reports : []).slice(0, 50)
+    const reports = rawReports.filter(mine).map((r: any) => cleanReport(r, w.email)).filter(Boolean)
+    const ctxBranch = BRANCH_CODES.has(b?.branch) && mine(b) ? b.branch : w.branch ?? "", ctxDay = DAY.test(String(b?.date)) ? b.date : bkkToday()
+    const res = { accepted: [...dropped], deleted: [] as string[], reports: rawReports.filter((r: any) => !mine(r)).map((r: any) => String(r?.key ?? "")) }
     await locked(async () => {
       const keys = new Set<string>([...entries.map((e: any) => key("st", e.branch, e.date)), ...reports.map((r: any) => key("st", r.branch, r.date))])
       if (ctxBranch) keys.add(key("st", ctxBranch, ctxDay))

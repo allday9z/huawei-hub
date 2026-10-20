@@ -752,11 +752,16 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadBran
 /* ===== Init ===== */
 $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 $('demo').hidden = !!ENDPOINT || !!HUB_API;
-// สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้ — ล็อกไว้ (เปลี่ยนได้ที่ ⚙️ ตั้งค่า > เปลี่ยนสาขา)
+// สาขาของเครื่องนี้: บัญชีสาขาล็อกตามอีเมล (hub_user.branch) เปลี่ยนไม่ได้ · เจ้าของระบบ / HOHW เริ่มที่สาขาที่เลือกตอนเข้าสู่ระบบ แต่เลือกสาขาอื่นได้
 let lockedBranch = false;
-try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb)){ lockedBranch = true; if(hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } } }catch(e){}
+try{
+  const hu = JSON.parse(localStorage.getItem('hub_user') || 'null'), hb = JSON.parse(localStorage.getItem('hub_branch') || 'null');
+  const b = hu && BRANCHES.includes(hu.branch) ? hu.branch : BRANCHES.includes(hb) ? hb : null;
+  lockedBranch = !!(hu && BRANCHES.includes(hu.branch));
+  if(b && b !== settings.branch){ settings.branch = b; settings.staff = ''; saveSettings(); }
+}catch(e){}
 fillSelect($('branch'),BRANCHES,settings.branch,'เลือกสาขา');
-if(lockedBranch){ $('branch').disabled = true; $('branch').title = 'สาขาของเครื่องนี้ — เปลี่ยนได้ที่ ⚙️ ตั้งค่า > เปลี่ยนสาขา'; }
+if(lockedBranch){ $('branch').disabled = true; $('branch').title = 'สาขาล็อกตามอีเมลของสาขา'; }
 loadStaff();
 setDate(svcDate);
 renderPin(); renderGeo(); renderCase(); renderLog(); sync(); loadBranch(); askGeo();

@@ -203,8 +203,8 @@ function ico(n,s,c){var P={"check": "<path d=\"M20 6 9 17l-5-5\"/>"};s=s||'1em';
       <div class="in">
         <div class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></div>
         <h1>เข้าสู่ระบบ</h1>
-        <p class="tag" id="gateTag">ขั้นที่ 1 · เลือกสาขา แล้วลงชื่อเข้าใช้ด้วยอีเมล Google ของร้าน</p>
-        <label class="gl">สาขา<select id="gateBranch"></select></label>
+        <p class="tag" id="gateTag">ลงชื่อเข้าใช้ด้วยอีเมล Google ของร้าน — บัญชีสาขา ระบบเลือกสาขาให้อัตโนมัติ</p>
+        <label class="gl" id="gateBranchRow">สาขา<select id="gateBranch"></select></label>
         <p class="ghint" id="gateHint">เลือกสาขาก่อน แล้วปุ่มลงชื่อเข้าใช้จะขึ้นมา</p>
         <div class="gbtn" id="gateBtn"></div>
         <div class="gacts" id="gateActs" hidden><button type="button" class="gcancel" id="gateCancel">ยกเลิก</button><button type="button" class="gok" id="gateOk">ยืนยันสาขา</button></div>
@@ -510,14 +510,19 @@ const branchLabel = b => b === ALL_BRANCH ? 'ทุกสาขา' : (b || 'ย
 let changingBranch = false;   // เปิดหน้านี้เพื่อเปลี่ยนสาขา (ล็อกอินอยู่แล้ว)
 $('gateBranch').innerHTML = '<option value="">เลือกสาขา</option>' + HUB_BRANCHES.map(b=>'<option>'+b+'</option>').join('') +
   '<option value="'+ALL_BRANCH+'">ทุกสาขา (สำนักงาน / HOHW)</option>';
+/* สาขาล็อกตามอีเมล (Antt 20 ต.ค. 2569): บัญชีสาขา (หมายเหตุขึ้นต้นด้วยรหัสสาขา / อีเมล hmdhktbyuficon@…) ได้สาขาของตัวเองอัตโนมัติ
+   ไม่ต้องเลือก · เฉพาะเจ้าของระบบ / ทีม HOHW (ทุกเมนู) เลือกสาขาเองหลังลงชื่อเข้าใช้ */
+const branchLocked = () => !!(user && user.branch);
 function renderGateStep(){
-  $('gateBranch').value = (changingBranch ? $('gateBranch').value : hubBranch) || '';
-  const chosen = !!$('gateBranch').value;
+  // changingBranch = กำลังเลือกสาขา (ลงชื่อเข้าใช้แล้ว) · ไม่งั้น = หน้าลงชื่อเข้าใช้ (ปุ่ม Google อย่างเดียว)
+  if(changingBranch) $('gateBranch').value = $('gateBranch').value || hubBranch || '';
+  $('gateBranchRow').hidden = !changingBranch;
   $('gateActs').hidden = !changingBranch;
-  $('gateBtn').hidden = changingBranch || !chosen;
-  $('gateHint').hidden = changingBranch || chosen;
-  $('gateTag').textContent = changingBranch ? 'เปลี่ยนสาขาของเครื่องนี้' : chosen ? 'ขั้นที่ 2 · ลงชื่อเข้าใช้ด้วยอีเมล Google ของร้าน' : 'ขั้นที่ 1 · เลือกสาขา แล้วลงชื่อเข้าใช้ด้วยอีเมล Google ของร้าน';
-  if(!changingBranch && chosen && window.google && google.accounts && google.accounts.id)
+  $('gateCancel').hidden = changingBranch && !hubBranch;   // ยังไม่มีสาขาเลย ต้องเลือกก่อน
+  $('gateBtn').hidden = changingBranch;
+  $('gateHint').hidden = true;
+  $('gateTag').textContent = changingBranch ? 'เลือกสาขาที่จะใช้งานบนเครื่องนี้ (เจ้าของระบบ / ทีม HOHW)' : 'ลงชื่อเข้าใช้ด้วยอีเมล Google ของร้าน — บัญชีสาขา ระบบเลือกสาขาให้อัตโนมัติ';
+  if(!changingBranch && window.google && google.accounts && google.accounts.id)
     google.accounts.id.renderButton($('gateBtn'), {theme:'outline', size:'large', text:'signin_with', shape:'pill', locale:'th', width:300});
 }
 $('gateBranch').addEventListener('change', ()=>{
@@ -526,7 +531,9 @@ $('gateBranch').addEventListener('change', ()=>{
   gateMsg(''); renderGateStep();
   if(hubBranch && window.google && google.accounts && google.accounts.id) google.accounts.id.prompt();
 });
-function openBranchChange(){ changingBranch = true; $('gateBranch').value = hubBranch || ''; $('gate').hidden = false; gateMsg(''); renderGateStep(); }
+function openBranchChange(){
+  if(branchLocked()){ hubBranch = user.branch; store.set('hub_branch', hubBranch); renderAcct(); goNext(); return; }   // บัญชีสาขา: เปลี่ยนไม่ได้
+  changingBranch = true; $('gateBranch').value = hubBranch || ''; $('gate').hidden = false; gateMsg(''); renderGateStep(); }
 $('gateCancel').onclick = ()=>{ changingBranch = false; $('gate').hidden = true; renderGateStep(); goNext(); };
 $('gateOk').onclick = ()=>{
   if(!$('gateBranch').value) return gateMsg('เลือกสาขาก่อน', true);
@@ -545,9 +552,11 @@ function goNext(){
 function gateMsg(msg, err){ $('gateMsg').textContent = msg || ''; $('gateMsg').classList.toggle('err', !!err); }
 function showGate(msg, err){ changingBranch = false; $('gate').hidden = false; gateMsg(msg, err); renderGateStep(); }
 function applyAccess(p, d){
-  user = {email: d.email, name: (p && p.name) || d.email, picture: (p && p.picture) || '', isOwner: !!d.isOwner, canDashboard: !!d.canDashboard, menus: Array.isArray(d.menus) ? d.menus : []};
+  user = {email: d.email, name: (p && p.name) || d.email, picture: (p && p.picture) || '', isOwner: !!d.isOwner, canDashboard: !!d.canDashboard, menus: Array.isArray(d.menus) ? d.menus : [], branch: d.branch || null};
+  if(user.branch && hubBranch !== user.branch){ hubBranch = user.branch; store.set('hub_branch', hubBranch); }   // ล็อกตามอีเมล
   const wasGate = !$('gate').hidden && !changingBranch;
   store.set('hub_user', user); if(!changingBranch) $('gate').hidden = true; renderAcct(); render(); checkReminders();
+  if(!user.branch && !hubBranch){ openBranchChange(); return; }   // เจ้าของระบบ / HOHW ยังไม่ได้เลือกสาขา
   if((wasGate || QS.has('relogin')) && !QS.has('switch')) goNext();   // เพิ่งเข้าสู่ระบบ / เชื่อมบัญชีใหม่: กลับไปหน้าที่ตั้งใจจะเปิด
 }
 function deny(email){
@@ -601,7 +610,7 @@ window.gisReady = function(){
   if(gisStarted || !window.google || !google.accounts || !google.accounts.id) return;
   gisStarted = true;
   google.accounts.id.initialize({client_id: GOOGLE_CLIENT_ID, callback: onGoogle, auto_select: true, use_fedcm_for_prompt: true});
-  if(!user){ showGate($('gateMsg').textContent, $('gateMsg').classList.contains('err')); if(hubBranch) google.accounts.id.prompt(); return; }
+  if(!user){ showGate($('gateMsg').textContent, $('gateMsg').classList.contains('err')); google.accounts.id.prompt(); return; }
   const t = savedToken();
   if(t) recheck(t);
   else google.accounts.id.prompt();          // token หมดอายุ: ให้ Google เข้าบัญชีเดิมให้อัตโนมัติ (ไม่ต้องกด)

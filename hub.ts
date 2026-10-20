@@ -90,7 +90,13 @@ function pgStore(url: string): Store {
   const sql = new SQL(url, { max: Number(process.env.HUB_PG_MAX ?? 10) })   // HUB_PG_MAX=1 for single-connection test databases
   let ready: Promise<unknown> | null = null
   const init = () => (ready ??= sql`CREATE TABLE IF NOT EXISTS huawei_hub_kv (key text PRIMARY KEY, value jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)
-  const decode = (text: string) => { let v: any = JSON.parse(text); while (typeof v === "string") v = JSON.parse(v); return v }
+  // The driver may have stored JSON text as a JSON *string* (double-encoded) — unwrap until it's no longer
+  // JSON text. A genuine string value (e.g. the session secret) stops the loop instead of throwing.
+  const decode = (text: string) => {
+    let v: any = JSON.parse(text)
+    while (typeof v === "string") { try { v = JSON.parse(v) } catch { break } }
+    return v
+  }
   return {
     kind: "postgres",
     async get(key) {
@@ -224,14 +230,26 @@ export async function sessionEmail(req: Request): Promise<string | null> {
 function cookieHeader(value: string, maxAge: number): string {
   return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`
 }
-// What a signed-in email may do: menus = app URLs (owner = all), canDashboard, allowed = may enter.
+// Branch accounts are locked to their branch (Antt, 20 Oct 2026): the branch code at the start of the note
+// (e.g. "HMD-HKT"), else the shop email pattern hmdhktbyuficon@gmail.com -> HMD-HKT. The owner and the
+// "ทุกเมนู" (HOHW) accounts are not locked — they choose the branch.
+function lockedBranchFor(login: Login | undefined, isOwner: boolean): string | null {
+  if (isOwner || !login || login.menus === "*") return null
+  const n = String(login.note || "").toUpperCase().match(/^(HES|HMD)-[A-Z]{3}\b/)
+  if (n && BRANCH_CODES.has(n[0])) return n[0]
+  const e = canonEmail(login.email).match(/^(hes|hmd)([a-z]{3})byuficon@/)
+  const code = e ? (e[1] + "-" + e[2]).toUpperCase() : ""
+  return BRANCH_CODES.has(code) ? code : null
+}
+// What a signed-in email may do: menus = app URLs (owner = all), canDashboard, allowed = may enter,
+// branch = the branch this account is locked to (null = may choose).
 export async function accountAccess(email: string) {
   const d = await loadAll()
   const isOwner = isOwnerEmail(email)
   const login = d.logins.find(l => l.active && canonEmail(l.email) === canonEmail(email))
   const ids = isOwner || login?.menus === "*" ? d.apps.map(x => x.id) : login ? login.menus as number[] : null
   const menus = ids ? d.apps.filter(x => ids.includes(x.id)).map(x => x.url) : null
-  return { isOwner, menus, canDashboard: !!menus && menus.includes(DASHBOARD_URL), allowed: isOwner || !!login }
+  return { isOwner, menus, canDashboard: !!menus && menus.includes(DASHBOARD_URL), allowed: isOwner || !!login, branch: lockedBranchFor(login, isOwner) }
 }
 
 /* ---------------- helpers ---------------- */

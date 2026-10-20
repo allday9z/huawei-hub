@@ -398,6 +398,7 @@ function render(){
   if($('app').hidden) return;
 
   $('brName').textContent = settings.branch;
+  $('swb').hidden = lockedBranch;   // บัญชีสาขา: สาขาล็อกตามอีเมล
   $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', Number(b.dataset.r)===round));
   // ส่งแล้วกี่โมง (รอบที่ส่งแล้วยังเปิดดูย้อนหลังได้ รายการไม่หาย)
@@ -678,7 +679,13 @@ $('shareLine').onclick=()=>{ queueReport(); copy(shareText); location.href='http
 ['pick','share'].forEach(id=>$(id).addEventListener('click',e=>{ if(e.target.id===id) $(id).hidden=true; }));
 
 // สาขาที่เลือกตอนเข้าสู่ระบบหน้าแรก (hub_branch) = สาขาของเครื่องนี้ (เหมือน Service Case)
-try{ const hb = JSON.parse(localStorage.getItem('hub_branch') || 'null'); if(BRANCHES.includes(hb)){ lockedBranch = true; if(hb !== settings.branch){ settings.branch = hb; settings.staff = ''; saveSettings(); } } }catch(e){}
+// สาขาของเครื่องนี้: บัญชีสาขาล็อกตามอีเมล (hub_user.branch) เปลี่ยนไม่ได้ · เจ้าของระบบ / HOHW เริ่มที่สาขาที่เลือกตอนเข้าสู่ระบบ แต่เลือกสาขาอื่นได้
+try{
+  const hu = JSON.parse(localStorage.getItem('hub_user') || 'null'), hb = JSON.parse(localStorage.getItem('hub_branch') || 'null');
+  const b = hu && BRANCHES.includes(hu.branch) ? hu.branch : BRANCHES.includes(hb) ? hb : null;
+  lockedBranch = !!(hu && BRANCHES.includes(hu.branch));
+  if(b && b !== settings.branch){ settings.branch = b; settings.staff = ''; saveSettings(); }
+}catch(e){}
 // โหมดทดลอง: เลือกสาขาเอง
 if(!ENDPOINT){
   $('demoBranch').innerHTML='<option value="">เลือกสาขา</option>'+BRANCHES.map(b=>'<option'+(b===settings.branch?' selected':'')+'>'+b+'</option>').join('');
