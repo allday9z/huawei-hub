@@ -42,7 +42,9 @@ type Staff = { id: number; name: string; branches: string; active: boolean }
 type LogEntry = { at: string; by: string; op: string; detail: string }
 // Emails with their own menu set (menus: "*" = every menu, or app ids). Signed-in accounts
 // that are not listed see the menus whose audience is "ทุกคน".
-type Login = { id: number; email: string; note: string; active: boolean; menus: "*" | number[] }
+// branch: "" / missing = automatic (branch code at the start of the note, or the shop email pattern),
+// a branch code = locked to it, "*" = not locked (chooses the branch — HOHW). Set on ⚙️ > สิทธิ์อีเมล.
+type Login = { id: number; email: string; note: string; active: boolean; menus: "*" | number[]; branch?: string }
 const DASHBOARD_URL = "/report-dashboard"
 
 
@@ -249,7 +251,9 @@ function cookieHeader(value: string, maxAge: number): string {
 // (e.g. "HMD-HKT"), else the shop email pattern hmdhktbyuficon@gmail.com -> HMD-HKT. The owner and the
 // "ทุกเมนู" (HOHW) accounts are not locked — they choose the branch.
 function lockedBranchFor(login: Login | undefined, isOwner: boolean): string | null {
-  if (isOwner || !login || login.menus === "*") return null
+  if (isOwner || !login) return null
+  if (login.branch && BRANCH_CODES.has(login.branch)) return login.branch   // set on ⚙️
+  if (login.branch === "*" || login.menus === "*") return null
   const n = String(login.note || "").toUpperCase().match(/^(HES|HMD)-[A-Z]{3}\b/)
   if (n && BRANCH_CODES.has(n[0])) return n[0]
   const e = canonEmail(login.email).match(/^(hes|hmd)([a-z]{3})byuficon@/)
@@ -349,12 +353,15 @@ async function applyOp(a: any, by: string): Promise<void> {
         : [...new Set((Array.isArray(a.menus) ? a.menus : []).map(Number).filter(x => appIds.has(x)))]
       if (a.menus === undefined && cur) menus = cur.menus           // toggling on/off keeps the menus
       if (menus !== "*" && !menus.length) throw new Error("เลือกอย่างน้อย 1 เมนู")
-      const label = menus === "*" ? "ทุกเมนู" : menus.map(id => d.apps.find(x => x.id === id)?.name).join(", ")
+      // branch lock: "" auto · code · "*" free; toggling on/off (no branch sent) keeps it
+      const branch = a.branch === undefined ? cur?.branch ?? "" : String(a.branch)
+      if (branch && branch !== "*" && !BRANCH_CODES.has(branch)) throw new Error("สาขาไม่ถูกต้อง")
+      const label = (menus === "*" ? "ทุกเมนู" : menus.map(id => d.apps.find(x => x.id === id)?.name).join(", ")) + (branch === "*" ? " · เลือกสาขาเองได้" : branch ? " · ล็อกสาขา " + branch : "")
       if (cur) {
-        const was = cur.active; Object.assign(cur, { note, active, menus })
+        const was = cur.active; Object.assign(cur, { note, active, menus, branch })
         log(was && !active ? "ปิดสิทธิ์อีเมล" : !was && active ? "เปิดสิทธิ์อีเมล" : "แก้ไขอีเมล", email + " · " + label)
       } else {
-        d.logins.push({ id: Math.max(0, ...d.logins.map(x => x.id)) + 1, email, note, active: true, menus }); log("เพิ่มอีเมลเข้าใช้งาน", email + " · " + label)
+        d.logins.push({ id: Math.max(0, ...d.logins.map(x => x.id)) + 1, email, note, active: true, menus, branch }); log("เพิ่มอีเมลเข้าใช้งาน", email + " · " + label)
       }
       await store.set("logins", d.logins); break
     }
@@ -365,7 +372,7 @@ async function applyOp(a: any, by: string): Promise<void> {
 
 async function adminData(email: string) {
   const d = await loadAll()
-  return { ok: true, me: email, isOwner: true, owner: OWNERS[0], owners: OWNERS, branches: BRANCHES, apps: d.apps.map(a => ({ ...a, row: a.id })), staff: d.staff.map(s => ({ ...s, row: s.id })), logins: d.logins.map(l => ({ ...l, row: l.id })), log: d.log }
+  return { ok: true, me: email, isOwner: true, owner: OWNERS[0], owners: OWNERS, branches: BRANCHES, apps: d.apps.map(a => ({ ...a, row: a.id })), staff: d.staff.map(s => ({ ...s, row: s.id })), logins: d.logins.map(l => ({ ...l, row: l.id, lock: lockedBranchFor(l, isOwnerEmail(l.email)) })), log: d.log }
 }
 
 /* ---------------- routes ---------------- */

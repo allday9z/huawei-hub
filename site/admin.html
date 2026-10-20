@@ -337,6 +337,11 @@ function viewLog(){
 }
 
 // Who may use which menu: each listed email has "ทุกเมนู" or its own set of menus.
+// สาขาที่มีผลจริง (lock มาจากเซิร์ฟเวอร์: ตั้งเอง หรือได้จากหมายเหตุ/ชื่ออีเมล)
+function branchLabel(l){
+  if(l.lock) return '<span class="tagb" style="background:#FDECEC;color:#C7000B">🔒 สาขา '+esc(l.lock)+(l.branch?'':' (อัตโนมัติ)')+'</span>';
+  return '<span class="tagb">เลือกสาขาเองได้</span>';
+}
 function menuLabel(l){
   if(l.menus==='*') return '<span class="tagb all">ทุกเมนู</span>';
   return (l.menus||[]).map(id=>{ const a=D.apps.find(x=>x.row===id); return a?'<span class="tagb ok">'+esc(a.name)+'</span>':''; }).join('');
@@ -346,6 +351,12 @@ function loginEditor(l){
   return '<div class="editor">'+
     '<div class="grid2" style="margin-top:0"><label class="l">อีเมล<input class="f" id="elEmail" type="email" placeholder="name@gmail.com" value="'+esc(l.email)+'"'+(l.row?' disabled':'')+'></label>'+
     '<label class="l">ชื่อ / หมายเหตุ<input class="f" id="elNote" placeholder="เช่น HMD-CWN หรือ สมชาย (ชาย) · HOHW" value="'+esc(l.note||'')+'"></label></div>'+
+    // สาขาของอีเมลนี้: อัตโนมัติ (รหัสสาขาในหมายเหตุ / ชื่ออีเมล) · ล็อกสาขาที่เลือก · ไม่ล็อก (ทีม HOHW เลือกสาขาเอง)
+    '<label class="l" style="margin-bottom:12px">สาขาของอีเมลนี้ (ล็อกตอนเข้าสู่ระบบ)<select class="f" id="elBranch">'+
+      '<option value=""'+(!l.branch?' selected':'')+'>อัตโนมัติ — ตามรหัสสาขาในหมายเหตุ หรือชื่ออีเมล (เช่น hmdhktbyuficon → HMD-HKT)</option>'+
+      (D.branches||[]).map(b=>'<option value="'+b.code+'"'+(l.branch===b.code?' selected':'')+'>🔒 ล็อก '+b.code+' · '+esc(b.name)+'</option>').join('')+
+      '<option value="*"'+(l.branch==='*'?' selected':'')+'>ไม่ล็อก — เลือกสาขาเองตอนเข้าใช้ (ทีม HOHW)</option>'+
+    '</select></label>'+
     '<div><p class="hint" style="margin-bottom:6px">ใช้เมนูไหนได้บ้าง (เลือกได้หลายเมนู)</p><div class="chips">'+
       '<button type="button" class="chip'+(all?' on':'')+'" data-lgm="*">ทุกเมนู</button>'+
       D.apps.map(a=>'<button type="button" class="chip'+(!all&&sel.includes(a.row)?' on':'')+'" data-lgm="'+a.row+'">'+esc(a.name)+(a.active?'':' (ซ่อนอยู่)')+'</button>').join('')+
@@ -362,7 +373,7 @@ function viewLogins(){
     '<ul class="rows">'+D.logins.map(l=>{
       const own = owners.includes(l.email);
       return '<li class="'+(l.active?'':'off')+'"><div class="main"><div class="name">'+esc(l.email)+'</div><div class="sub">'+esc(l.note||'')+'</div><div>'+
-        (own?'<span class="tagb all">เจ้าของระบบ · ทุกเมนู</span><span class="tagb">เข้าหน้าตั้งค่าได้</span>':menuLabel(l))+(l.active?'':'<span class="tagb red">ปิดสิทธิ์</span>')+
+        (own?'<span class="tagb all">เจ้าของระบบ · ทุกเมนู</span><span class="tagb">เข้าหน้าตั้งค่าได้</span>':menuLabel(l)+branchLabel(l))+(l.active?'':'<span class="tagb red">ปิดสิทธิ์</span>')+
       '</div></div>'+(own?'':'<button class="btn sec" data-act="lgEdit" data-email="'+esc(l.email)+'">แก้ไข</button><button class="btn '+(l.active?'warn':'sec')+'" data-act="lgToggle" data-email="'+esc(l.email)+'">'+(l.active?'ปิดสิทธิ์':'เปิดสิทธิ์')+'</button>')+'</li>'+
       (editLogin && editLogin.row===l.row ? '<li style="display:block;border-top:0;padding-top:0">'+loginEditor(editLogin)+'</li>' : '');
     }).join('')+'</ul></section>';
@@ -403,7 +414,7 @@ document.addEventListener('click', async e=>{
     a.disabled=true;
     if(await op(body, act==='appToggle'?(body.active?'แสดงบนหน้าแรกแล้ว':'ซ่อนจากหน้าแรกแล้ว'):'บันทึกแอปแล้ว')){ editApp=null; render(); } else a.disabled=false;
   }
-  if(act==='lgNew'){ editLogin={row:0,email:'',note:'',menus:D.apps.filter(x=>x.audience!=='ผู้ดูแล').map(x=>x.row),active:true}; render(); $('elEmail').focus(); }
+  if(act==='lgNew'){ editLogin={row:0,email:'',note:'',branch:'',menus:D.apps.filter(x=>x.audience!=='ผู้ดูแล').map(x=>x.row),active:true}; render(); $('elEmail').focus(); }
   if(act==='lgEdit'){ editLogin={...D.logins.find(y=>y.email===a.dataset.email)}; render(); }
   if(act==='lgCancel'){ editLogin=null; render(); }
   if(act==='lgSave'){
@@ -413,7 +424,7 @@ document.addEventListener('click', async e=>{
     if(editLogin.menus!=='*' && !(editLogin.menus||[]).length) return toast('เลือกอย่างน้อย 1 เมนู',true);
     if(!editLogin.row && D.logins.some(y=>y.email===em)) return toast('มีอีเมลนี้ในรายการแล้ว — กดแก้ไขที่แถวนั้น',true);
     a.disabled=true;
-    if(await op({op:'login.save',email:em,note:editLogin.note||'',menus:editLogin.menus,active:editLogin.active!==false}, editLogin.row?'บันทึกแล้ว':'เพิ่มอีเมลแล้ว')){ editLogin=null; render(); } else a.disabled=false;
+    if(await op({op:'login.save',email:em,note:editLogin.note||'',menus:editLogin.menus,branch:editLogin.branch||'',active:editLogin.active!==false}, editLogin.row?'บันทึกแล้ว':'เพิ่มอีเมลแล้ว')){ editLogin=null; render(); } else a.disabled=false;
   }
   if(act==='lgToggle'){
     const x=D.logins.find(y=>y.email===a.dataset.email);
@@ -433,7 +444,7 @@ document.addEventListener('click', async e=>{
   }
 });
 function readAppEditor(){ if(!editApp||!$('eaName')) return; editApp.due=$('eaDue').value; editApp.name=$('eaName').value.trim(); editApp.desc=$('eaDesc').value.trim(); editApp.url=$('eaUrl').value.trim(); }
-function readLoginEditor(){ if(!editLogin) return; const e=$('elEmail'), n=$('elNote'); if(e && !editLogin.row) editLogin.email=e.value; if(n) editLogin.note=n.value; }
+function readLoginEditor(){ if(!editLogin) return; const e=$('elEmail'), n=$('elNote'), b=$('elBranch'); if(e && !editLogin.row) editLogin.email=e.value; if(n) editLogin.note=n.value; if(b) editLogin.branch=b.value; }
 function readStaffEditor(){ const n=$('esName'); if(n && editStaff) editStaff.name=n.value; }
 
 /* ===== Init ===== */
