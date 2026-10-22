@@ -5,6 +5,8 @@
 // Storage: the hub key/value store, one key per app + branch + day:
 //   rec:case:<BRANCH>:<YYYY-MM-DD> -> { cases: Case[] }
 //   rec:st:<BRANCH>:<YYYY-MM-DD>   -> { entries: StEntry[], reports: StReport[] }
+//   rec:check:<BRANCH>:<YYYY-MM-DD> -> { submissions: Checklist[] }   (Morning Store Checklist, Antt 22 Oct 2026:
+//     the checklist only went to the Google Sheet, so /records never saw it — now it is saved here too)
 // Deleted ST entries are kept with deletedAt / deletedBy (audit) and left out of reads.
 // Who: the device session cookie (set by the portal after Google sign-in) + this email's menus on ⚙️.
 import ExcelJS from "exceljs"
@@ -17,7 +19,7 @@ const MAX_ITEMS = 200
 const clean = (v: unknown, max = 200) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max)
 const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
 const bkkToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
-const key = (app: "case" | "st", branch: string, day: string) => `rec:${app}:${branch}:${day}`
+const key = (app: "case" | "st" | "check", branch: string, day: string) => `rec:${app}:${branch}:${day}`
 
 type Who = { email: string; isOwner: boolean; canDashboard: boolean; menus: string[]; branch: string | null }
 // Signed-in device + this email may use the page (owner: everything).
@@ -81,20 +83,39 @@ function stSent(reports: any[]) {
   return out
 }
 
+/* ---------------- Morning Store Checklist ---------------- */
+function cleanCheck(c: any, email: string) {
+  if (!BRANCH_CODES.has(c?.branch) || !DAY.test(String(c?.date))) return null
+  const items: any[] = []
+  for (const cat of (Array.isArray(c?.categories) ? c.categories : []).slice(0, 20))
+    for (const it of (Array.isArray(cat?.items) ? cat.items : []).slice(0, 60)) {
+      const status = it?.status === "pass" || it?.status === "fail" ? it.status : ""
+      items.push({ cat: clean(cat?.name, 120), text: clean(it?.text, 300), status, reason: clean(it?.reason, 500), fix: clean(it?.fix, 500), passDetail: clean(it?.passDetail, 500) })
+    }
+  if (!items.length) return null
+  const pass = items.filter(i => i.status === "pass").length, fail = items.filter(i => i.status === "fail").length
+  return {
+    id: ID.test(String(c?.id)) ? String(c.id) : `${c.branch}-${Date.now()}`, branch: String(c.branch), date: String(c.date),
+    inspector: clean(c.inspector, 120), generalNote: clean(c.generalNote, 1000), items, pass, fail, total: items.length,
+    at: new Date().toISOString(), savedBy: email,
+  }
+}
+const bkkTime = (iso: string) => { const t = new Date(iso); return isNaN(+t) ? "" : new Date(+t + 7 * 3600e3).toISOString().slice(11, 16) }
+
 /* ---------------- Excel ---------------- */
 const ST_CATS: Record<string, string> = { phone: "Phone", tablet: "Tablet", watch: "Watch", audio: "Audio", iot: "IoT", accy: "HUAWEI Accy", third: "Third-Party", pre: "Pre-order", care: "HUAWEI Care", service: "Service (Walk-in)", lost: "ปิดการขายไม่สำเร็จ" }
 async function exportXlsx(url: URL): Promise<Response> {
   const from = DAY.test(url.searchParams.get("from") ?? "") ? url.searchParams.get("from")! : bkkToday().slice(0, 8) + "01"
   const to = DAY.test(url.searchParams.get("to") ?? "") ? url.searchParams.get("to")! : bkkToday()
   const branch = BRANCH_CODES.has(url.searchParams.get("branch") ?? "") ? url.searchParams.get("branch")! : ""
-  const app = ["case", "st"].includes(url.searchParams.get("app") ?? "") ? url.searchParams.get("app")! : "all"
+  const app = ["case", "st", "check"].includes(url.searchParams.get("app") ?? "") ? url.searchParams.get("app")! : "all"
   if (from > to) return json({ ok: false, error: "ช่วงวันที่ไม่ถูกต้อง" }, 400)
   const inRange = (k: string) => { const p = k.split(":"); return p[3] >= from && p[3] <= to && (!branch || p[2] === branch) }
   const wb = new ExcelJS.Workbook(); wb.creator = "HUAWEI Hub"
   const head = (ws: ExcelJS.Worksheet) => { ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1 }]; ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } } }
   const branchName = (c: string) => BRANCHES.find(b => b.code === c)?.name ?? ""
   let count = 0
-  if (app !== "st") {
+  if (app === "all" || app === "case") {
     const ws = wb.addWorksheet("Service Case")
     ws.columns = [
       { header: "วันที่", key: "date", width: 12 }, { header: "เวลา", key: "time", width: 8 }, { header: "สาขา", key: "branch", width: 10 }, { header: "ชื่อสาขา", key: "bname", width: 26 },
@@ -111,7 +132,23 @@ async function exportXlsx(url: URL): Promise<Response> {
     }
     head(ws)
   }
-  if (app !== "case") {
+  if (app === "all" || app === "check") {
+    const ws = wb.addWorksheet("Checklist")
+    ws.columns = [
+      { header: "วันที่", key: "date", width: 12 }, { header: "ส่งเวลา", key: "time", width: 8 }, { header: "สาขา", key: "branch", width: 10 }, { header: "ชื่อสาขา", key: "bname", width: 26 },
+      { header: "ผู้ตรวจสอบ", key: "inspector", width: 26 }, { header: "ผ่าน", key: "pass", width: 7 }, { header: "ไม่ผ่าน", key: "fail", width: 8 }, { header: "ทั้งหมด", key: "total", width: 8 },
+      { header: "ข้อที่ไม่ผ่าน (สาเหตุ → แก้ไข)", key: "fails", width: 70 }, { header: "หมายเหตุ", key: "generalNote", width: 40 }, { header: "บันทึกด้วยบัญชี", key: "savedBy", width: 28 },
+    ]
+    for (const { key: k, value } of await store.list("rec:check:")) {
+      if (!inRange(k)) continue
+      for (const c of (value?.submissions ?? []).slice().sort((a: any, b: any) => (a.at || "").localeCompare(b.at || ""))) {
+        const fails = (c.items ?? []).filter((i: any) => i.status === "fail").map((i: any) => i.text + (i.reason ? ` (${i.reason}` + (i.fix ? ` → ${i.fix}` : "") + ")" : "")).join("\n")
+        const row = ws.addRow({ ...c, bname: branchName(c.branch), time: bkkTime(c.at), fails }); row.alignment = { wrapText: true, vertical: "top" }; count++
+      }
+    }
+    head(ws)
+  }
+  if (app === "all" || app === "st") {
     const ws = wb.addWorksheet("ST Report รายการ")
     ws.columns = [
       { header: "วันที่", key: "date", width: 12 }, { header: "เวลา", key: "time", width: 8 }, { header: "รอบ", key: "round", width: 6 }, { header: "สาขา", key: "branch", width: 10 },
@@ -136,7 +173,7 @@ async function exportXlsx(url: URL): Promise<Response> {
     head(ws); head(ws2)
   }
   const buf = await wb.xlsx.writeBuffer()
-  const name = `huawei-hub-${app === "case" ? "service-case" : app === "st" ? "st-report" : "records"}-${branch || "all"}-${from}_${to}.xlsx`
+  const name = `huawei-hub-${app === "case" ? "service-case" : app === "st" ? "st-report" : app === "check" ? "checklist" : "records"}-${branch || "all"}-${from}_${to}.xlsx`
   console.log(`[rec] export ${app} ${branch || "all"} ${from}..${to} rows ${count}`)
   return new Response(buf as ArrayBuffer, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" } })
 }
@@ -185,13 +222,30 @@ async function summary(url: URL) {
     }
     bump(st.sent, br, new Set((value?.reports ?? []).map((r: any) => r.round)).size)
   }
+  // Morning Store Checklist: which branches sent it on which days, latest + average score, items that failed most
+  const ck = { sends: 0, byBranch: {} as Record<string, { days: number; sends: number; scoreSum: number; last: any }>, byDay: {} as Record<string, number>, failItems: {} as Record<string, number>, today: [] as string[] }
+  const today = bkkToday()
+  for (const { key: k, value } of await store.list("rec:check:")) {
+    if (!inRange(k)) continue
+    const [, , br, day] = k.split(":"), subs = value?.submissions ?? []
+    if (!subs.length) continue
+    const b = (ck.byBranch[br] ??= { days: 0, sends: 0, scoreSum: 0, last: null })
+    b.days++; bump(ck.byDay, day); if (day === today) ck.today.push(br)
+    const latest = subs.reduce((a: any, x: any) => (!a || (x.at || "") > (a.at || "") ? x : a), null)
+    b.scoreSum += latest.total ? latest.pass / latest.total : 0   // one score per branch-day = its latest send
+    if (!b.last || day > b.last.date || (day === b.last.date && latest.at > b.last.at)) b.last = { date: day, time: bkkTime(latest.at), inspector: latest.inspector, pass: latest.pass, fail: latest.fail, total: latest.total, at: latest.at }
+    ck.sends += subs.length; b.sends += subs.length
+    for (const i of latest.items ?? []) if (i.status === "fail") bump(ck.failItems, i.text)
+  }
+  const checklist = { sends: ck.sends, byDay: ck.byDay, today: ck.today, failItems: top(ck.failItems, 10),
+    byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 100) : 0, last: b.last }])) }
   // Service (Walk-in) on the ST Report = customers on Service Case + walk-ins typed on ST
   for (const [br, b] of Object.entries(cs.byBranch)) { const x = (st.byBranch[br] ??= {}); bump(x, "service", b.visits) }
   bump(st.totals, "service", cs.visits)
   return json({
     ok: true, from, to, branch, branches: BRANCHES.map(b => b.code), cats: ST_CATS,
     case: { ...cs, products: top(cs.products), issues: top(cs.issues, 10), failReasons: top(cs.failReasons), nextActions: top(cs.nextActions), staff: top(cs.staff, 10) },
-    st: { ...st, models: top(st.models, 10) },
+    st: { ...st, models: top(st.models, 10) }, checklist, today,
   })
 }
 
@@ -207,6 +261,21 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
     if (p === "/api/rec/export.xlsx" && req.method === "GET") {
       const w = await who(req, "admin"); if (w instanceof Response) return w
       return await exportXlsx(url)
+    }
+    if (p === "/api/rec/check") {
+      const w = await who(req, "/checklist"); if (w instanceof Response) return w
+      if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
+      let b: any; try { b = await req.json() } catch { return json({ ok: false, error: "bad request" }, 400) }
+      if (w.branch && b?.branch !== w.branch) return json({ ok: false, error: "branch", branch: w.branch }, 403)   // locked to its own branch
+      const c = cleanCheck(b, w.email); if (!c) return json({ ok: false, error: "ข้อมูลไม่ครบ (สาขา / วันที่ / รายการ)" }, 400)
+      let dup = false
+      await locked(async () => {
+        const k = key("check", c.branch, c.date), d = (await store.get(k)) ?? { submissions: [] }
+        d.submissions ??= []; dup = d.submissions.some((x: any) => x.id === c.id)
+        if (!dup) { d.submissions.push(c); await store.set(k, d) }
+      })
+      console.log(`[rec] check ${c.branch} ${c.date} ${c.pass}/${c.total}${dup ? " (already saved)" : ""} by ${w.email}`)
+      return json({ ok: true, id: c.id, pass: c.pass, total: c.total })
     }
     const app = p === "/api/rec/case" ? "case" : p === "/api/rec/st" ? "st" : null
     if (!app) return json({ ok: false, error: "not found" }, 404)

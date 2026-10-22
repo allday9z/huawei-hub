@@ -740,38 +740,48 @@ function sendSummary(){
   }
 
   const text = buildSummaryText();
+  // Saved in HUAWEI Hub too, so รายงานสาขา (/records) sees it (Antt, 22 Oct 2026) — sent alongside the Google Sheet.
+  const payload = buildPayload();
+  payload.id = 'ck-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const hubP = saveToHub(payload);
+  const hubNote = h => h.ok ? 'บันทึกในระบบแล้ว' : h.status === 401 ? 'ยังไม่ได้บันทึกในระบบ (ต้องเข้าสู่ระบบอีกครั้งที่หน้าแรก)' : 'ยังไม่ได้บันทึกในระบบ';
+  const markDone = () => {
+    // Tell the portal (same site) that today's checklist is in, so its
+    // deadline card shows "ส่งแล้ววันนี้" without pressing "ส่งแล้ว" by hand.
+    try{
+      var d = new Date(), p2 = function(n){ return String(n).padStart(2,'0'); };
+      localStorage.setItem('hub_done_' + d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_/checklist', 'true');
+    }catch(e){}
+  };
 
   if(!WEBHOOK_URL){
     copyText(text);
-    showToast('ส่งสรุปผลแล้ว วางในอีเมล/Line ของทีมได้เลย', 'circle-check');
+    hubP.then(h => { if(h.ok) markDone(); showToast(hubNote(h) + ' · คัดลอกสรุปผลแล้ว วางในอีเมล/Line ของทีมได้เลย', h.ok ? 'circle-check' : undefined); });
     return;
   }
 
   showToast('กำลังส่งข้อมูลเข้า Google Sheet...');
   fetch(WEBHOOK_URL, {
     method: 'POST',
-    body: JSON.stringify(buildPayload())
+    body: JSON.stringify(payload)
   })
   .then(r => r.json())
-  .then(res => {
-    if(res.ok){
-      copyText(text);
-      showToast('ส่งเข้า Google Sheet สำเร็จ (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)', 'circle-check');
-      // Tell the portal (same site) that today's checklist is in, so its
-      // deadline card shows "ส่งแล้ววันนี้" without pressing "ส่งแล้ว" by hand.
-      try{
-        var d = new Date(), p2 = function(n){ return String(n).padStart(2,'0'); };
-        localStorage.setItem('hub_done_' + d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_/checklist', 'true');
-      }catch(e){}
-    } else {
-      copyText(text);
-      showToast('ส่งเข้า Sheet ไม่สำเร็จ: ' + (res.error||'') + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
-    }
-  })
-  .catch(err => {
+  .then(res => hubP.then(h => {
     copyText(text);
-    showToast('เชื่อมต่อ Sheet ไม่สำเร็จ — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
-  });
+    if(res.ok || h.ok) markDone();
+    if(res.ok) showToast('ส่งเข้า Google Sheet สำเร็จ · ' + hubNote(h) + ' (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)', 'circle-check');
+    else showToast('ส่งเข้า Sheet ไม่สำเร็จ: ' + (res.error||'') + ' · ' + hubNote(h) + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
+  }))
+  .catch(err => hubP.then(h => {
+    copyText(text);
+    if(h.ok) markDone();
+    showToast('เชื่อมต่อ Sheet ไม่สำเร็จ · ' + hubNote(h) + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
+  }));
+}
+function saveToHub(payload){
+  return fetch('/api/rec/check', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok && !!d.ok, status: r.status, error: d.error })))
+    .catch(() => ({ ok:false, status:0 }));
 }
 
 function openEmailDraft(){

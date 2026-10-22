@@ -7,7 +7,9 @@
 <title>รายงานสาขา</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* รายงานสาขา (Antt, 20 Oct 2026): สรุป Service Case + ST Report ที่บันทึกใน HUAWEI Hub เป็นแดชบอร์ด แล้วกดออกเป็น Excel */
+/* รายงานสาขา (Antt, 20 Oct 2026): สรุป Service Case + ST Report ที่บันทึกใน HUAWEI Hub เป็นแดชบอร์ด แล้วกดออกเป็น Excel
+   + Morning Store Checklist (22 Oct 2026) — หน้า Checklist บันทึกเข้า Hub ด้วยแล้ว */
+.st-ok{color:var(--ok);font-weight:600} .st-no{color:#C7C7CC}
 :root{--bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;--red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC;--bad:#C7000B}
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
@@ -63,7 +65,7 @@ th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:
 thead th{font-size:12.5px;color:var(--muted);font-weight:600}
 tfoot td{font-weight:700}
 .loading{opacity:.55;transition:opacity .2s}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
 .seg button{border:0;background:none;border-radius:11px;padding:9px 6px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 @media (max-width:720px){
@@ -89,10 +91,20 @@ tfoot td{font-weight:700}
       <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
     </div>
   </section>
-  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button></div>
+  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="check">Checklist</button></div>
   <div class="msg" id="msg" hidden></div>
 
   <main id="main">
+    <div id="secCheck">
+    <h2><span class="dot"></span>Morning Store Checklist</h2>
+    <div class="kpis" id="ckKpi"></div>
+    <div class="card"><h3>แยกตามสาขา <small>คะแนน = ข้อที่ผ่าน / ทั้งหมด (ครั้งล่าสุดของแต่ละวัน)</small></h3><div class="scroll"><table id="ckTable"></table></div></div>
+    <div class="grid2">
+      <div class="card"><h3>ข้อที่ไม่ผ่านบ่อย</h3><div class="bars" id="ckFails"></div></div>
+      <div class="card"><h3>จำนวนสาขาที่ส่งรายวัน</h3><div class="days" id="ckDay"></div></div>
+    </div>
+    <p class="empty" style="margin:2px 4px 0;font-size:12.5px">บันทึกเข้าระบบตั้งแต่ 22 ต.ค. 2026 · ข้อมูลก่อนหน้านั้นอยู่ใน Google Sheet (แดชบอร์ด › Morning Store Checklist)</p>
+    </div>
     <div id="secCase">
     <h2><span class="dot"></span>Service Case</h2>
     <div class="kpis" id="caseKpi"></div>
@@ -136,12 +148,12 @@ $('from').value = qs.get('from') || ymd(new Date(now.getFullYear(), now.getMonth
 $('to').value = qs.get('to') || ymd(now);
 $('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
 // มุมมอง (เลือกจากแถบ "แดชบอร์ด"): all | case | st
-let view = ['case','st'].includes(qs.get('view')) ? qs.get('view') : 'all';
+let view = ['case','st','check'].includes(qs.get('view')) ? qs.get('view') : 'all';
+const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist' };
 function applyView(){
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
-  $('secCase').hidden = view==='st'; $('secSt').hidden = view==='case';
-  document.title = view==='case' ? 'แดชบอร์ด Service Case' : view==='st' ? 'แดชบอร์ด ST Report' : 'รายงานสาขา';
-  document.querySelector('.hello h1').textContent = view==='case' ? 'แดชบอร์ด Service Case' : view==='st' ? 'แดชบอร์ด ST Report' : 'รายงานสาขา';
+  $('secCase').hidden = !['all','case'].includes(view); $('secSt').hidden = !['all','st'].includes(view); $('secCheck').hidden = !['all','check'].includes(view);
+  document.title = TITLES[view]; document.querySelector('.hello h1').textContent = TITLES[view];
 }
 document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; applyView(); history.replaceState(null,'','?'+params()); });
 applyView();
@@ -181,7 +193,27 @@ async function load(){
 }
 function showMsg(h){ $('msg').innerHTML = h; $('msg').hidden = false; }
 
+function renderCheck(d, brs){
+  const k = d.checklist || { sends:0, byBranch:{}, byDay:{}, failItems:[], today:[] };
+  const rows = brs.map(b => [b, k.byBranch[b]]);
+  const sent = rows.filter(r => r[1]).length, days = Object.values(k.byBranch).reduce((a, b) => a + b.days, 0);
+  const avg = days ? Math.round(Object.values(k.byBranch).reduce((a, b) => a + b.avg * b.days, 0) / days) : 0;
+  const inRange = d.today >= d.from && d.today <= d.to;
+  $('ckKpi').innerHTML =
+    (inRange ? '<div class="kpi '+(k.today.length >= brs.length ? 'ok' : 'bad')+'"><span>ส่งแล้ววันนี้</span><b>'+k.today.filter(b => brs.includes(b)).length+'<small>/ '+brs.length+' สาขา</small></b></div>'
+             : '<div class="kpi"><span>สาขาที่ส่ง</span><b>'+sent+'<small>/ '+brs.length+' สาขา</small></b></div>')+
+    '<div class="kpi"><span>วันที่ส่ง (รวมทุกสาขา)</span><b>'+fmt(days)+'<small>วัน</small></b></div>'+
+    '<div class="kpi"><span>ส่งทั้งหมด</span><b>'+fmt(k.sends)+'<small>ครั้ง</small></b></div>'+
+    '<div class="kpi '+(avg >= 90 ? 'ok' : days ? 'bad' : '')+'"><span>คะแนนเฉลี่ย</span><b>'+(days ? avg : '–')+'<small>'+(days ? '%' : '')+'</small></b></div>';
+  $('ckTable').innerHTML = '<thead><tr><th>สาขา</th>'+(inRange ? '<th>วันนี้</th>' : '')+'<th>ส่ง (วัน)</th><th>ล่าสุด</th><th>ผู้ตรวจสอบ</th><th>คะแนนล่าสุด</th><th>เฉลี่ย</th></tr></thead><tbody>'+
+    rows.map(([b, x]) => '<tr><td>'+b+'</td>'+(inRange ? '<td>'+(k.today.includes(b) ? '<span class="st-ok">ส่งแล้ว</span>' : '<span class="st-no">ยังไม่ส่ง</span>')+'</td>' : '')+
+      (x ? '<td>'+fmt(x.days)+'</td><td>'+esc(x.last.date.slice(8)+'/'+x.last.date.slice(5,7)+' '+x.last.time)+'</td><td style="text-align:left">'+esc(x.last.inspector||'-')+'</td><td>'+x.last.pass+'/'+x.last.total+(x.last.fail ? ' <small style="color:var(--bad)">(ไม่ผ่าน '+x.last.fail+')</small>' : '')+'</td><td>'+x.avg+'%</td>'
+         : '<td class="st-no">0</td><td class="st-no">-</td><td></td><td></td><td></td>')+'</tr>').join('')+'</tbody>';
+  bars($('ckFails'), (k.failItems || []).map(x => ({ name:x.name, total:x.count })));
+  daysChart($('ckDay'), d.from, d.to, day => k.byDay[day] || 0);
+}
 function render(d){
+  renderCheck(d, d.branch ? [d.branch] : d.branches);
   const c = d.case, s = d.st, rate = c.cases ? Math.round(c.ok/c.cases*100) : 0;
   $('caseKpi').innerHTML =
     '<div class="kpi"><span>ลูกค้าที่ช่วย</span><b>'+fmt(c.visits)+'<small>คน</small></b></div>'+
