@@ -46,6 +46,7 @@
     { icon: 'checklist', name: 'Morning Store Checklist', desc: 'ตรวจความพร้อมก่อนเปิดร้าน ทำทุกเช้า', url: '/checklist' },
     { icon: 'tool', name: 'Service Case', desc: 'บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ', url: '/case-log' },
     { icon: 'file', name: 'ST Report', desc: 'กด + ทุกครั้งที่ขายได้ ส่งรายงานรอบ 15:00 และปิดร้าน', url: '/st-report' },
+    { icon: 'users', name: 'Foot Traffic', desc: 'นับคนเดินเข้าร้าน / เดินผ่านหน้าร้าน กด +1 ทุกครั้ง ดูยอดรายชั่วโมง', url: '/foot-traffic' },
     { icon: 'chart', name: 'Checklist Report Dashboard', desc: 'สรุปคะแนน Checklist ทุกสาขา (เฉพาะผู้มีสิทธิ์)', url: '/report-dashboard' },
   ];
   var apps = get('hub_apps', null) || DEFAULT_APPS;
@@ -143,6 +144,7 @@
     if (admin) {
       list.push({ icon: 'tool', name: 'Service Case', desc: 'เคสที่ช่วยลูกค้า สำเร็จ / ไม่สำเร็จ เรื่องที่เจอบ่อย แยกสาขา', url: '/records?view=case' });
       list.push({ icon: 'receipt', name: 'ST Report', desc: 'ยอดขายแต่ละหมวด รุ่นขายดี รอบที่ส่งรายงาน แยกสาขา', url: '/records?view=st' });
+      list.push({ icon: 'users', name: 'Foot Traffic', desc: 'คนเดินเข้าร้าน / เดินผ่าน รายชั่วโมง อัตราเข้าร้าน อัตราซื้อ แยกสาขา', url: '/records?view=foot' });
     }
     // other report apps added on ⚙️ (moment "รายงาน") show up here too
     apps.forEach(function (a) { if (isReport(a) && a.url !== '/report-dashboard' && a.url !== '/records' && canSee(u, a)) list.push(a); });
@@ -161,7 +163,7 @@
       (u.branch
         ? '<div class="row static"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>สาขา ' + esc(u.branch) + '</b><small>ล็อกตามอีเมลของสาขา (ทีม HOHW เท่านั้นที่เลือกสาขาได้)</small></span></div>'
         : '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>') +
-      (u.isOwner || u.canDashboard ? '<a class="row" href="/records"><span class="ic">' + svg('chart') + '</span><span class="tx"><b>รายงานสาขา</b><small>สรุป Service Case · ST Report เป็นแดชบอร์ด + ดาวน์โหลด Excel</small></span><span class="chev">›</span></a>' : '') +
+      (u.isOwner || u.canDashboard ? '<a class="row" href="/records"><span class="ic">' + svg('chart') + '</span><span class="tx"><b>รายงานสาขา</b><small>สรุป Service Case · ST Report · Foot Traffic เป็นแดชบอร์ด + ดาวน์โหลด Excel</small></span><span class="chev">›</span></a>' : '') +
       (u.isOwner ? '<a class="row" href="/admin"><span class="ic">' + svg('sliders') + '</span><span class="tx"><b>จัดการพอร์ทัล</b><small>เมนู · รายชื่อทีม · สิทธิ์อีเมล (เฉพาะผู้ดูแล)</small></span><span class="chev">›</span></a>' : '') +
       '<button class="row red" type="button" data-a="out"><span class="ic">' + svg('logout') + '</span><span class="tx"><b>ออกจากระบบ</b></span><span class="chev">›</span></button>' +
       '</div>';

@@ -61,6 +61,8 @@ const ST_REPORT_APP: Omit<App, "id"> = { icon: "file", name: "ST Report", desc: 
 // แบบร่างอีเมล B2B (Antt, 26 Oct 2026): added to เครื่องมือ but switched off ("ปิดใช้งานไม่ให้คนอื่นใช้งานก่อน") —
 // hidden, on nobody's menu; owners still see it (marked) and can open it. Turn it on at ⚙️ > แอปในพอร์ทัล.
 const EMAIL_TPL_APP: Omit<App, "id"> = { icon: "megaphone", name: "แบบร่างอีเมล B2B", desc: "อีเมลแนะนำร้านถึงหน่วยงานและองค์กรใกล้สาขา เติมข้อมูลแล้วเปิดใน Gmail", url: "/email-templates", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: false }
+// Foot Traffic (Antt, 26 Oct 2026: "เพิ่มเมนู การนับ foot traffic ที่หน้าสาขา") — tap +1 per person walking in / past.
+const FOOT_APP: Omit<App, "id"> = { icon: "users", name: "Foot Traffic", desc: "นับคนเดินเข้าร้าน / เดินผ่านหน้าร้าน กด +1 ทุกครั้ง ดูยอดรายชั่วโมง", url: "/foot-traffic", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
 // = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
 const SEED_LOGINS: [string, string][] = [
   ["benyapakamonphan@gmail.com", "เจ้าของระบบ"], ["marketing.uficon@gmail.com", ""], ["th.verapat@gmail.com", "วีรภัทร (หนึ่ง) · HOHW"],
@@ -193,6 +195,19 @@ async function migrateStReport() {
       console.log("[hub] added แบบร่างอีเมล B2B to the menu, hidden (id " + id + ")")
     }
     await store.set("mig_email_tpl", true)
+  }
+  // Once: Foot Traffic right after ST Report; accounts that have ST Report get it too.
+  if (!(await store.get("mig_foot_app"))) {
+    if (!apps.some(a => a.url === FOOT_APP.url)) {
+      const id = Math.max(0, ...apps.map(a => a.id)) + 1
+      const st = apps.find(a => a.url === ST_REPORT_APP.url)
+      apps.splice(st ? apps.indexOf(st) + 1 : apps.length, 0, { id, ...FOOT_APP })
+      for (const l of logins) if (Array.isArray(l.menus) && st && l.menus.includes(st.id) && !l.menus.includes(id)) l.menus.push(id)
+      log.unshift({ at: nowTH(), by: "ระบบ", op: "เพิ่มแอป", detail: FOOT_APP.name })
+      await store.set("apps", apps); await store.set("logins", logins); await store.set("log", log.slice(0, 300))
+      console.log("[hub] added Foot Traffic to the menu (id " + id + ")")
+    }
+    await store.set("mig_foot_app", true)
   }
 }
 

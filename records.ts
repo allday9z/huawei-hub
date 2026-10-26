@@ -7,6 +7,8 @@
 //   rec:st:<BRANCH>:<YYYY-MM-DD>   -> { entries: StEntry[], reports: StReport[] }
 //   rec:check:<BRANCH>:<YYYY-MM-DD> -> { submissions: Checklist[] }   (Morning Store Checklist, Antt 22 Oct 2026:
 //     the checklist only went to the Google Sheet, so /records never saw it — now it is saved here too)
+//   rec:foot:<BRANCH>:<YYYY-MM-DD>  -> { entries: FootTap[] }   (Foot Traffic, Antt 26 Oct 2026: staff tap +1 for each
+//     person who walks into the shop / walks past the front; deleted taps kept with deletedAt like ST)
 // Deleted ST entries are kept with deletedAt / deletedBy (audit) and left out of reads.
 // Who: the device session cookie (set by the portal after Google sign-in) + this email's menus on ⚙️.
 import ExcelJS from "exceljs"
@@ -21,7 +23,7 @@ const clean = (v: unknown, max = 200) => String(v ?? "").replace(/[\u0000-\u001f
 const cleanLines = (v: unknown, max = 200) => String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f]/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, max)
 const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
 const bkkToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
-const key = (app: "case" | "st" | "check", branch: string, day: string) => `rec:${app}:${branch}:${day}`
+const key = (app: "case" | "st" | "check" | "foot", branch: string, day: string) => `rec:${app}:${branch}:${day}`
 
 type Who = { email: string; isOwner: boolean; canDashboard: boolean; menus: string[]; branch: string | null }
 // Signed-in device + this email may use the page (owner: everything).
@@ -102,6 +104,21 @@ function cleanCheck(c: any, email: string) {
     at: new Date().toISOString(), savedBy: email,
   }
 }
+/* ---------------- Foot Traffic ---------------- */
+// kind: "in" = walked into the shop, "pass" = walked past the front without coming in
+const FOOT_KINDS = { in: "เดินเข้าร้าน", pass: "เดินผ่านหน้าร้าน" } as Record<string, string>
+const DEVICE_CATS = new Set(["phone", "tablet", "watch", "audio", "iot"])
+function cleanFoot(e: any, email: string) {
+  if (!ID.test(String(e?.id)) || !BRANCH_CODES.has(e?.branch) || !DAY.test(String(e?.date)) || !FOOT_KINDS[e?.kind]) return null
+  return {
+    id: String(e.id), ts: clean(e.ts, 40), date: String(e.date), time: TIME.test(String(e.time)) ? String(e.time) : "",
+    branch: String(e.branch), kind: String(e.kind), qty: int(e.qty, 1, 50, 1), staff: clean(e.staff, 120), savedBy: email, savedAt: new Date().toISOString(),
+  }
+}
+async function footDay(branch: string, day: string): Promise<any[]> {
+  return ((await store.get(key("foot", branch, day))) ?? {}).entries ?? []
+}
+const footHour = (e: any) => (e.time || "").slice(0, 2)
 const bkkTime = (iso: string) => { const t = new Date(iso); return isNaN(+t) ? "" : new Date(+t + 7 * 3600e3).toISOString().slice(11, 16) }
 
 /* ---------------- Excel ---------------- */
@@ -110,7 +127,7 @@ async function exportXlsx(url: URL): Promise<Response> {
   const from = DAY.test(url.searchParams.get("from") ?? "") ? url.searchParams.get("from")! : bkkToday().slice(0, 8) + "01"
   const to = DAY.test(url.searchParams.get("to") ?? "") ? url.searchParams.get("to")! : bkkToday()
   const branch = BRANCH_CODES.has(url.searchParams.get("branch") ?? "") ? url.searchParams.get("branch")! : ""
-  const app = ["case", "st", "check"].includes(url.searchParams.get("app") ?? "") ? url.searchParams.get("app")! : "all"
+  const app = ["case", "st", "check", "foot"].includes(url.searchParams.get("app") ?? "") ? url.searchParams.get("app")! : "all"
   if (from > to) return json({ ok: false, error: "ช่วงวันที่ไม่ถูกต้อง" }, 400)
   const inRange = (k: string) => { const p = k.split(":"); return p[3] >= from && p[3] <= to && (!branch || p[2] === branch) }
   const wb = new ExcelJS.Workbook(); wb.creator = "HUAWEI Hub"
@@ -175,8 +192,39 @@ async function exportXlsx(url: URL): Promise<Response> {
     }
     head(ws); head(ws2)
   }
+  if (app === "all" || app === "foot") {
+    // one row per branch + day: totals, rates against the ST device sales of that day, walk-ins per hour
+    const ws = wb.addWorksheet("Foot Traffic")
+    const HOURS = Array.from({ length: 14 }, (_, i) => String(i + 9).padStart(2, "0"))   // 09:00 – 22:00
+    ws.columns = [
+      { header: "วันที่", key: "date", width: 12 }, { header: "สาขา", key: "branch", width: 10 }, { header: "ชื่อสาขา", key: "bname", width: 26 },
+      { header: "เดินเข้าร้าน (คน)", key: "in", width: 14 }, { header: "เดินผ่านหน้าร้าน (คน)", key: "pass", width: 17 }, { header: "อัตราเข้าร้าน %", key: "capture", width: 13 },
+      { header: "ขายเครื่อง (ST)", key: "devices", width: 13 }, { header: "อัตราซื้อ %", key: "conv", width: 11 },
+      ...HOURS.map(h => ({ header: `เข้าร้าน ${h}:00`, key: "h" + h, width: 10 })), { header: "นอกช่วงเวลา", key: "hx", width: 11 },
+    ]
+    const stDev: Record<string, number> = {}
+    for (const { key: k, value } of await store.list("rec:st:")) {
+      if (!inRange(k)) continue
+      stDev[k.slice(7)] = (value?.entries ?? []).filter((e: any) => !e.deletedAt && DEVICE_CATS.has(e.cat)).reduce((a: number, e: any) => a + (e.qty || 0), 0)
+    }
+    for (const { key: k, value } of await store.list("rec:foot:")) {
+      if (!inRange(k)) continue
+      const [, , br, day] = k.split(":"), live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
+      if (!live.length) continue
+      const row: any = { date: day, branch: br, bname: branchName(br), in: 0, pass: 0, devices: stDev[br + ":" + day] ?? 0, hx: 0 }
+      for (const h of HOURS) row["h" + h] = 0
+      for (const e of live) {
+        row[e.kind] += e.qty
+        if (e.kind === "in") { const h = footHour(e); if (HOURS.includes(h)) row["h" + h] += e.qty; else row.hx += e.qty }
+      }
+      row.capture = row.in + row.pass ? Math.round(row.in / (row.in + row.pass) * 100) : ""
+      row.conv = row.in ? Math.round(row.devices / row.in * 100) : ""
+      ws.addRow(row); count++
+    }
+    head(ws)
+  }
   const buf = await wb.xlsx.writeBuffer()
-  const name = `huawei-hub-${app === "case" ? "service-case" : app === "st" ? "st-report" : app === "check" ? "checklist" : "records"}-${branch || "all"}-${from}_${to}.xlsx`
+  const name = `huawei-hub-${app === "case" ? "service-case" : app === "st" ? "st-report" : app === "check" ? "checklist" : app === "foot" ? "foot-traffic" : "records"}-${branch || "all"}-${from}_${to}.xlsx`
   console.log(`[rec] export ${app} ${branch || "all"} ${from}..${to} rows ${count}`)
   return new Response(buf as ArrayBuffer, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" } })
 }
@@ -242,13 +290,28 @@ async function summary(url: URL) {
   }
   const checklist = { sends: ck.sends, byDay: ck.byDay, today: ck.today, failItems: top(ck.failItems, 10),
     byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 100) : 0, last: b.last }])) }
+  // Foot Traffic: people in / past the shop, by branch, day and hour (+ device sales of the same branch for the buy rate)
+  const ft = { in: 0, pass: 0, byBranch: {} as Record<string, { in: number; pass: number; days: number }>, byDay: {} as Record<string, number>, byHour: {} as Record<string, { in: number; pass: number }> }
+  for (const { key: k, value } of await store.list("rec:foot:")) {
+    if (!inRange(k)) continue
+    const [, , br, day] = k.split(":"), live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
+    if (!live.length) continue
+    const b = (ft.byBranch[br] ??= { in: 0, pass: 0, days: 0 }); b.days++
+    for (const e of live) {
+      const kind = e.kind === "pass" ? "pass" : "in"
+      ft[kind] += e.qty; b[kind] += e.qty
+      if (kind === "in") bump(ft.byDay, day, e.qty)
+      const h = footHour(e); if (h) { const x = (ft.byHour[h] ??= { in: 0, pass: 0 }); x[kind] += e.qty }
+    }
+  }
+  const foot = { ...ft, devices: Object.fromEntries(Object.entries(st.byBranch).map(([br, x]) => [br, [...DEVICE_CATS].reduce((a, c) => a + (x[c] ?? 0), 0)])) }
   // Service (Walk-in) on the ST Report = customers on Service Case + walk-ins typed on ST
   for (const [br, b] of Object.entries(cs.byBranch)) { const x = (st.byBranch[br] ??= {}); bump(x, "service", b.visits) }
   bump(st.totals, "service", cs.visits)
   return json({
     ok: true, from, to, branch, branches: BRANCHES.map(b => b.code), cats: ST_CATS,
     case: { ...cs, products: top(cs.products), issues: top(cs.issues, 10), failReasons: top(cs.failReasons), nextActions: top(cs.nextActions), staff: top(cs.staff, 10) },
-    st: { ...st, models: top(st.models, 10) }, checklist, today,
+    st: { ...st, models: top(st.models, 10) }, checklist, foot, today,
   })
 }
 
@@ -299,6 +362,22 @@ async function activity(url: URL): Promise<Response> {
     for (const r of value?.reports ?? [])
       add({ at: validIso(r.at), day, email: r.savedBy, branch, app: "st", action: `ส่ง ST Report รอบ ${r.round}` + (r.round === 1 ? " (10:00–15:00)" : " (ทั้งวัน)"), detail: r.staff ? `ผู้ส่ง ${r.staff}` : "" })
   }
+  // Foot Traffic: one row per email + branch + day (taps are many) — totals and first / last tap
+  for (const { key: k, value } of await store.list("rec:foot:")) {
+    if (!inRange(k)) continue
+    const [, , branch, day] = k.split(":"), by = new Map<string, { email: string; in: number; pass: number; first: string; last: string }>()
+    for (const e of value?.entries ?? []) {
+      if (e.deletedAt) continue
+      const at = validIso(e.ts) || validIso(e.savedAt), c = canonEmail(e.savedBy || "")
+      if (!at || !c) continue
+      const x = by.get(c) ?? { email: e.savedBy, in: 0, pass: 0, first: at, last: at }
+      x[e.kind === "pass" ? "pass" : "in"] += e.qty || 1
+      if (at < x.first) x.first = at; if (at > x.last) x.last = at
+      by.set(c, x)
+    }
+    for (const x of by.values())
+      add({ at: x.first, day, email: x.email, branch, app: "foot", action: "นับ Foot Traffic", detail: `เดินเข้าร้าน ${x.in} · เดินผ่าน ${x.pass} · ${bkkTime(x.first)}–${bkkTime(x.last)} น.` })
+  }
   // opened the hub: one row per email per day (first – last time)
   const lockOf = (email: string) => lockedBranchFor(logins.find(l => canonEmail(l.email) === canonEmail(email)), isOwnerEmail(email)) ?? ""
   for (const { key: k, value } of await store.list("act:seen:")) {
@@ -312,6 +391,47 @@ async function activity(url: URL): Promise<Response> {
   const notes = Object.fromEntries(logins.map(l => [canonEmail(l.email), l.note || ""]))
   const people = [...new Set(rows.map(r => r.email))].map(email => ({ email, note: notes[canonEmail(email)] ?? "", branch: lockOf(email) }))
   return json({ ok: true, from, to, due, total: rows.length, rows: rows.slice(0, 20000), people })
+}
+
+/* Foot Traffic page: GET today's taps of a branch (+ ST device sales and Service Case customers for the rates),
+   POST queued taps / deletes from the device (same offline queue as ST Report). */
+async function footRoute(req: Request, url: URL): Promise<Response> {
+  const w = await who(req, "/foot-traffic"); if (w instanceof Response) return w
+  if (req.method === "GET") {
+    const branch = url.searchParams.get("branch") ?? "", day = url.searchParams.get("date") ?? ""
+    if (!BRANCH_CODES.has(branch) || !DAY.test(day)) return json({ ok: false, error: "bad request" }, 400)
+    if (w.branch && branch !== w.branch) return json({ ok: false, error: "branch", branch: w.branch }, 403)
+    const st = await stDay(branch, day), cases = (await caseDay(branch, day)).cases
+    const devices = st.entries.filter(e => !e.deletedAt && DEVICE_CATS.has(e.cat)).reduce((a, e) => a + (e.qty || 0), 0)
+    return json({ ok: true, entries: (await footDay(branch, day)).filter(e => !e.deletedAt), devices, served: new Set(cases.map(c => c.visitId || c.id)).size })
+  }
+  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
+  let b: any; try { b = await req.json() } catch { return json({ ok: false, error: "bad request" }, 400) }
+  const mine = (x: any) => !w.branch || x?.branch === w.branch
+  const raw = (Array.isArray(b?.foot?.entries) ? b.foot.entries : []).slice(0, 500)
+  const dropped = raw.filter((e: any) => !mine(e)).map((e: any) => String(e?.id ?? ""))
+  const entries = raw.filter(mine).map((e: any) => cleanFoot(e, w.email)).filter(Boolean)
+  const deletes = (Array.isArray(b?.foot?.deletes) ? b.foot.deletes : []).slice(0, 500).map(String).filter((x: string) => ID.test(x))
+  const ctxBranch = BRANCH_CODES.has(b?.branch) && mine(b) ? b.branch : w.branch ?? "", ctxDay = DAY.test(String(b?.date)) ? b.date : bkkToday()
+  const res = { accepted: [...dropped], deleted: [] as string[] }
+  await locked(async () => {
+    const keys = new Set<string>(entries.map((e: any) => key("foot", e.branch, e.date)))
+    if (ctxBranch && deletes.length) keys.add(key("foot", ctxBranch, ctxDay))
+    for (const k of keys) {
+      const d = (await store.get(k)) ?? { entries: [] }
+      d.entries ??= []
+      for (const e of entries) if (key("foot", e.branch, e.date) === k) { if (!d.entries.some((x: any) => x.id === e.id)) d.entries.push(e); res.accepted.push(e.id) }
+      for (const id of deletes) {
+        const e = d.entries.find((x: any) => x.id === id)
+        if (e && !e.deletedAt) { e.deletedAt = new Date().toISOString(); e.deletedBy = w.email }
+        if (e && !res.deleted.includes(id)) res.deleted.push(id)
+      }
+      await store.set(k, d)
+    }
+    for (const id of deletes) if (!res.deleted.includes(id)) res.deleted.push(id)   // not found: nothing to retry
+  })
+  console.log(`[rec] foot +${res.accepted.length - dropped.length} -${res.deleted.length}${dropped.length ? ` (other branch dropped ${dropped.length})` : ""} by ${w.email}`)
+  return json({ ok: true, foot: res })
 }
 
 /* ---------------- routes ---------------- */
@@ -351,6 +471,7 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
       console.log(`[rec] check ${c.branch} ${c.date} ${c.pass}/${c.total}${dup ? " (already saved)" : ""} by ${w.email}`)
       return json({ ok: true, id: c.id, pass: c.pass, total: c.total })
     }
+    if (p === "/api/rec/foot") return await footRoute(req, url)
     const app = p === "/api/rec/case" ? "case" : p === "/api/rec/st" ? "st" : null
     if (!app) return json({ ok: false, error: "not found" }, 404)
     const w = await who(req, app === "case" ? "/case-log" : "/st-report"); if (w instanceof Response) return w

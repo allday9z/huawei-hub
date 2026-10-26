@@ -346,7 +346,7 @@ function viewApps(){
 const bkDay = (ms) => new Date(ms + 7*3600e3).toISOString().slice(0,10);
 const bkHM = iso => new Date(new Date(iso).getTime() + 7*3600e3).toISOString().slice(11,16);
 const thDay = d => new Date(d+'T12:00:00+07:00').toLocaleDateString('th-TH',{timeZone:'Asia/Bangkok',weekday:'long',day:'numeric',month:'short',year:'numeric'});
-const ACT_APPS = [['all','ทั้งหมด'],['checklist','Morning Checklist'],['case','Service Case'],['st','ST Report'],['seen','เข้าใช้งาน']];
+const ACT_APPS = [['all','ทั้งหมด'],['checklist','Morning Checklist'],['case','Service Case'],['st','ST Report'],['foot','Foot Traffic'],['seen','เข้าใช้งาน']];
 let actQ = {from:bkDay(Date.now()), to:bkDay(Date.now())}, actD = null, actBusy = false, actApp = 'all', actBr = '', actEm = '', actShow = 300;
 async function loadAct(){
   actBusy = true; if(tab==='act') render();
@@ -381,7 +381,7 @@ function viewAct(){
   // สรุปตามอีเมล
   const by = {};
   for(const r of rows){
-    const p = by[r.email] || (by[r.email] = {email:r.email, branches:new Set(), n:{checklist:0,case:0,st:0}, ck:[], seen:null, last:''});
+    const p = by[r.email] || (by[r.email] = {email:r.email, branches:new Set(), n:{checklist:0,case:0,st:0,foot:0}, ck:[], seen:null, last:''});
     if(r.branch) p.branches.add(r.branch);
     if(r.app==='seen') p.seen = r; else p.n[r.app]++;
     if(r.app==='checklist'){ p.ck.push(bkHM(r.at)+' น.'+(r.late?' (หลัง '+r.late+')':'')); if(r.late) p.late=true; }
@@ -395,6 +395,7 @@ function viewAct(){
     if(p.n.checklist) tags.push('<span class="tagb '+(p.late?'red':'ok')+'">Checklist '+(one?'ส่ง '+p.ck.reverse().join(', '):p.n.checklist+' ครั้ง')+'</span>');
     if(p.n.case) tags.push('<span class="tagb">Service Case '+p.n.case+'</span>');
     if(p.n.st) tags.push('<span class="tagb">ST Report '+p.n.st+'</span>');
+    if(p.n.foot) tags.push('<span class="tagb">Foot Traffic '+(one?'':p.n.foot+' วัน')+'</span>');
     if(p.seen && one) tags.push('<span class="tagb">เข้าใช้งาน '+esc(p.seen.detail.replace(/^ครั้งแรก /,'').replace(/ · ล่าสุด /,'–').replace(/ · .*$/,''))+' น.</span>');
     else if(p.seen) tags.push('<span class="tagb">เข้าใช้งาน</span>');
     return '<li class="who" data-acem="'+esc(p.email)+'"><div class="main"><div class="name">'+esc(p.email)+'</div><div class="sub">'+(n?esc(n)+' · ':'')+([...p.branches].join(', ')||'ไม่ระบุสาขา')+'</div><div>'+tags.join('')+'</div></div></li>';

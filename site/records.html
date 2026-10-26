@@ -65,8 +65,8 @@ th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:
 thead th{font-size:12.5px;color:var(--muted);font-weight:600}
 tfoot td{font-weight:700}
 .loading{opacity:.55;transition:opacity .2s}
-.seg{display:grid;grid-template-columns:repeat(4,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
-.seg button{border:0;background:none;border-radius:11px;padding:9px 6px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
+.seg button{border:0;background:none;border-radius:11px;padding:9px 4px;font-weight:600;font-size:14px;line-height:1.25;color:var(--muted);cursor:pointer}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 @media (max-width:720px){
   .filt{grid-template-columns:1fr 1fr}
@@ -91,7 +91,7 @@ tfoot td{font-weight:700}
       <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
     </div>
   </section>
-  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="check">Checklist</button></div>
+  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="check">Checklist</button><button type="button" data-v="foot">Foot Traffic</button></div>
   <div class="msg" id="msg" hidden></div>
 
   <main id="main">
@@ -121,6 +121,16 @@ tfoot td{font-weight:700}
     </div>
 
     </div>
+    <div id="secFoot">
+    <h2><span class="dot"></span>Foot Traffic</h2>
+    <div class="kpis" id="ftKpi"></div>
+    <div class="card"><h3>แยกตามสาขา <small>อัตราเข้าร้าน = เข้าร้าน ÷ (เข้าร้าน + เดินผ่าน) · อัตราซื้อ = ขายเครื่อง (ST Report) ÷ คนเข้าร้าน</small></h3><div class="scroll"><table id="ftTable"></table></div></div>
+    <div class="grid2">
+      <div class="card"><h3>คนเข้าร้านรายชั่วโมง <small>รวมทุกวันในช่วงที่เลือก</small></h3><div class="days" id="ftHour"></div></div>
+      <div class="card"><h3>คนเข้าร้านรายวัน</h3><div class="days" id="ftDay"></div></div>
+    </div>
+    <p class="empty" style="margin:2px 4px 0;font-size:12.5px">เริ่มนับตั้งแต่ 26 ต.ค. 2026 (เมนู Foot Traffic)</p>
+    </div>
     <div id="secSt">
     <h2><span class="dot"></span>ST Report</h2>
     <div class="kpis" id="stKpi"></div>
@@ -148,11 +158,11 @@ $('from').value = qs.get('from') || ymd(new Date(now.getFullYear(), now.getMonth
 $('to').value = qs.get('to') || ymd(now);
 $('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
 // มุมมอง (เลือกจากแถบ "แดชบอร์ด"): all | case | st
-let view = ['case','st','check'].includes(qs.get('view')) ? qs.get('view') : 'all';
-const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist' };
+let view = ['case','st','check','foot'].includes(qs.get('view')) ? qs.get('view') : 'all';
+const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist', foot:'แดชบอร์ด Foot Traffic' };
 function applyView(){
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
-  $('secCase').hidden = !['all','case'].includes(view); $('secSt').hidden = !['all','st'].includes(view); $('secCheck').hidden = !['all','check'].includes(view);
+  $('secCase').hidden = !['all','case'].includes(view); $('secSt').hidden = !['all','st'].includes(view); $('secCheck').hidden = !['all','check'].includes(view); $('secFoot').hidden = !['all','foot'].includes(view);
   document.title = TITLES[view]; document.querySelector('.hello h1').textContent = TITLES[view];
 }
 document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; applyView(); history.replaceState(null,'','?'+params()); });
@@ -212,8 +222,28 @@ function renderCheck(d, brs){
   bars($('ckFails'), (k.failItems || []).map(x => ({ name:x.name, total:x.count })));
   daysChart($('ckDay'), d.from, d.to, day => k.byDay[day] || 0);
 }
+function renderFoot(d, brs){
+  const f = d.foot || { in:0, pass:0, byBranch:{}, byDay:{}, byHour:{}, devices:{} };
+  const pctOf = (a, b) => b ? Math.round(a/b*100) : null, show = v => v==null ? '–' : v+'%';
+  const dev = brs.reduce((a, b) => a + (f.byBranch[b] ? (f.devices[b]||0) : 0), 0), inB = brs.reduce((a, b) => a + ((f.byBranch[b]||{}).in||0), 0);
+  const cap = pctOf(f.in, f.in+f.pass), conv = pctOf(dev, inB);
+  $('ftKpi').innerHTML =
+    '<div class="kpi"><span>เดินเข้าร้าน</span><b>'+fmt(f.in)+'<small>คน</small></b></div>'+
+    '<div class="kpi"><span>เดินผ่านหน้าร้าน</span><b>'+fmt(f.pass)+'<small>คน</small></b></div>'+
+    '<div class="kpi"><span>อัตราเข้าร้าน</span><b>'+(cap==null?'–':cap)+'<small>'+(cap==null?'':'%')+'</small></b></div>'+
+    '<div class="kpi"><span>อัตราซื้อ</span><b>'+(conv==null?'–':conv)+'<small>'+(conv==null?'':'%')+'</small></b></div>';
+  $('ftTable').innerHTML = '<thead><tr><th>สาขา</th><th>วันที่นับ</th><th>เดินเข้าร้าน</th><th>เดินผ่าน</th><th>อัตราเข้าร้าน</th><th>ขายเครื่อง</th><th>อัตราซื้อ</th></tr></thead><tbody>'+
+    brs.map(b => { const x = f.byBranch[b]; if(!x) return '<tr><td>'+b+'</td><td class="st-no">0</td><td class="st-no">–</td><td></td><td></td><td></td><td></td></tr>';
+      const dv = f.devices[b]||0; return '<tr><td>'+b+'</td><td>'+fmt(x.days)+' วัน</td><td>'+fmt(x.in)+'</td><td>'+fmt(x.pass)+'</td><td>'+show(pctOf(x.in, x.in+x.pass))+'</td><td>'+fmt(dv)+'</td><td>'+show(pctOf(dv, x.in))+'</td></tr>'; }).join('')+
+    '</tbody>'+(brs.length>1 ? '<tfoot><tr><td>รวม</td><td></td><td>'+fmt(f.in)+'</td><td>'+fmt(f.pass)+'</td><td>'+show(cap)+'</td><td>'+fmt(dev)+'</td><td>'+show(conv)+'</td></tr></tfoot>' : '');
+  const hs = Object.keys(f.byHour).concat(['10','11','12','13','14','15','16','17','18','19','20','21']).filter((h, i, a) => a.indexOf(h) === i).sort();
+  const hmax = Math.max(1, ...hs.map(h => (f.byHour[h]||{}).in||0));
+  $('ftHour').innerHTML = f.in ? hs.map(h => { const v = (f.byHour[h]||{}).in||0; return '<div class="d" title="'+h+':00 – '+v+' คน"><i style="height:'+(v/hmax*100)+'%"></i><small>'+Number(h)+'</small></div>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';
+  daysChart($('ftDay'), d.from, d.to, k => f.byDay[k] || 0);
+}
 function render(d){
   renderCheck(d, d.branch ? [d.branch] : d.branches);
+  renderFoot(d, d.branch ? [d.branch] : d.branches);
   const c = d.case, s = d.st, rate = c.cases ? Math.round(c.ok/c.cases*100) : 0;
   $('caseKpi').innerHTML =
     '<div class="kpi"><span>ลูกค้าที่ช่วย</span><b>'+fmt(c.visits)+'<small>คน</small></b></div>'+
