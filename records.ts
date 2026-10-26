@@ -124,6 +124,67 @@ async function footDay(branch: string, day: string): Promise<any[]> {
 const footHour = (e: any) => (e.time || "").slice(0, 2)
 const bkkTime = (iso: string) => { const t = new Date(iso); return isNaN(+t) ? "" : new Date(+t + 7 * 3600e3).toISOString().slice(11, 16) }
 
+/* ---------------- Foot Traffic → Google Sheet ----------------
+   Antt's sheet (26 Oct 2026). FOOT_SHEET_URL = the /exec URL of apps-script/FootTrafficSheet.gs deployed on that sheet
+   (Coolify env; nothing is sent while it is empty). One row per branch + day, upserted by the script, so every push is a
+   full snapshot of that day (taps, undo, deletes all end up right). Pushes are batched ~20 s after the last tap and retried
+   every minute; the first start with a new URL sends every day already counted (marker foot_sheet_synced). */
+const FOOT_SHEET_URL = (process.env.FOOT_SHEET_URL ?? "").trim()
+// same periods as the Foot Traffic page — before 10:00 counts in ช่วงเช้า, after 22:00 in ช่วงค่ำ
+const FOOT_PERIODS = [{ name: "ช่วงเช้า", to: 12 }, { name: "ช่วงเที่ยง", to: 14 }, { name: "ช่วงบ่าย", to: 17 }, { name: "ช่วงเย็น", to: 20 }, { name: "ช่วงค่ำ", to: 99 }]
+const FOOT_SHEET_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 10).padStart(2, "0"))   // 10:00 – 21:00
+async function footSheetRow(branch: string, day: string) {
+  const live = (await footDay(branch, day)).filter(e => !e.deletedAt && e.kind !== "pass")
+  const n = FOOT_ZERO(), periods = FOOT_PERIODS.map(() => 0), hours: Record<string, number> = {}
+  let last = ""
+  for (const e of live) {
+    n[e.kind] += e.qty
+    if ((e.ts || "") > last) last = e.ts
+    if (e.kind !== "in") continue
+    const h = footHour(e)
+    if (h) { periods[FOOT_PERIODS.findIndex(p => Number(h) < p.to)] += e.qty; hours[h] = (hours[h] ?? 0) + e.qty }
+  }
+  return {
+    date: day, branch, name: BRANCHES.find(b => b.code === branch)?.name ?? "", in: n.in, talk: n.talk, buy: n.buy,
+    periods, hours: FOOT_SHEET_HOURS.map(h => hours[h] ?? 0), outside: Object.entries(hours).filter(([h]) => !FOOT_SHEET_HOURS.includes(h)).reduce((a, [, v]) => a + v, 0),
+    lastTap: last ? bkkTime(last) : "",
+  }
+}
+const footSheetDue = new Set<string>()   // "BRANCH:DAY"
+let footSheetTimer: ReturnType<typeof setTimeout> | null = null
+function queueFootSheet(keys: Iterable<string>, wait = 20_000) {
+  if (!FOOT_SHEET_URL) return
+  for (const k of keys) footSheetDue.add(k)
+  if (!footSheetTimer) footSheetTimer = setTimeout(flushFootSheet, wait)
+}
+async function pushFootSheet(keys: string[]): Promise<boolean> {
+  const rows = await Promise.all(keys.map(k => { const [br, day] = k.split(":"); return footSheetRow(br, day) }))
+  try {
+    const r = await fetch(FOOT_SHEET_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, redirect: "follow",
+      body: JSON.stringify({ source: "huawei-hub", periods: FOOT_PERIODS.map(p => p.name), hours: FOOT_SHEET_HOURS, rows }) })
+    const d: any = await r.json().catch(() => null)
+    if (d?.ok) { console.log(`[foot-sheet] sent ${rows.length} row(s) (added ${d.added ?? "?"}, updated ${d.updated ?? "?"})`); return true }
+    console.error(`[foot-sheet] failed: HTTP ${r.status} ${d?.error ?? "(not JSON — is the web app deployed for Anyone?)"}`)
+  } catch (e) { console.error("[foot-sheet] failed:", String(e)) }
+  return false
+}
+async function flushFootSheet() {
+  footSheetTimer = null
+  const keys = [...footSheetDue]; footSheetDue.clear()
+  if (!keys.length) return
+  if (!(await pushFootSheet(keys))) queueFootSheet(keys, 60_000)
+}
+export async function initFootSheet() {
+  if (!FOOT_SHEET_URL) { console.log("[foot-sheet] off (FOOT_SHEET_URL not set)"); return }
+  try {
+    if ((await store.get("foot_sheet_synced")) === FOOT_SHEET_URL) { console.log("[foot-sheet] on"); return }
+    const keys = (await store.list("rec:foot:")).map(({ key: k }) => k.split(":").slice(2).join(":")).sort()
+    for (let i = 0; i < keys.length; i += 100) if (!(await pushFootSheet(keys.slice(i, i + 100)))) throw new Error("push failed")
+    await store.set("foot_sheet_synced", FOOT_SHEET_URL)
+    console.log(`[foot-sheet] on — sent all ${keys.length} branch-day(s) counted so far`)
+  } catch (e) { console.error("[foot-sheet] first full send failed, retry on next start:", String(e)) }
+}
+
 /* ---------------- Excel ---------------- */
 const ST_CATS: Record<string, string> = { phone: "Phone", tablet: "Tablet", watch: "Watch", audio: "Audio", iot: "IoT", accy: "HUAWEI Accy", third: "Third-Party", pre: "Pre-order", care: "HUAWEI Care", service: "Service (Walk-in)", lost: "ปิดการขายไม่สำเร็จ" }
 async function exportXlsx(url: URL): Promise<Response> {
@@ -435,6 +496,7 @@ async function footRoute(req: Request, url: URL): Promise<Response> {
     }
     for (const id of deletes) if (!res.deleted.includes(id)) res.deleted.push(id)   // not found: nothing to retry
   })
+  queueFootSheet(new Set<string>([...entries.map((e: any) => `${e.branch}:${e.date}`), ...(ctxBranch && res.deleted.length ? [`${ctxBranch}:${ctxDay}`] : [])]))
   console.log(`[rec] foot +${res.accepted.length - dropped.length} -${res.deleted.length}${dropped.length ? ` (other branch dropped ${dropped.length})` : ""} by ${w.email}`)
   return json({ ok: true, foot: res })
 }

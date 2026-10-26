@@ -4,7 +4,7 @@
 import { stat } from "node:fs/promises"
 import { resolve, sep } from "node:path"
 import { hubRoute, initHub, pageGate } from "./hub"
-import { recordsRoute } from "./records"
+import { recordsRoute, initFootSheet } from "./records"
 
 const PORT = Number(process.env.PORT ?? 80)
 const SITE = resolve(import.meta.dir, "site")
@@ -157,4 +157,4 @@ Bun.serve({
   },
 })
 console.log(`huawei-hub listening on :${PORT} (AI ${AI_ENDPOINT && AI_KEY ? "on" : "off"})`)
-initHub()
+initHub().then(initFootSheet)
