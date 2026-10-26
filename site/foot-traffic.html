@@ -76,6 +76,26 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .bar.peak i{background:var(--red)}
 .bar em{font-style:normal;font-size:11px;font-weight:600;color:var(--ink);min-height:14px}
 .bar span{font-size:10.5px;color:var(--muted)}
+.bar{cursor:pointer}
+.bar.sel i{outline:2px solid var(--ink);outline-offset:1px}
+.bar.sel span{color:var(--ink);font-weight:700}
+/* แบ่งตามช่วงเวลา (คุณ Antt 26 Oct 2026) — คนที่มาทำงานต่อแบ่งกันชัดเจน */
+.periods{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-bottom:14px}
+.prow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0}
+.prow b{display:block;font-size:15.5px;font-weight:700}
+.prow small{display:block;font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap}
+.prow small em{font-style:normal;color:var(--red);font-weight:700}
+.prow .trk{height:8px;border-radius:99px;background:#EDEDF1;overflow:hidden;position:relative}
+.prow .trk i{position:absolute;inset:0 auto 0 0;background:#C9C9D1;border-radius:inherit}
+.prow .trk i b{position:absolute;inset:0 auto 0 0;background:var(--ok);border-radius:inherit}
+.prow.peak .trk i{background:var(--red)}
+.prow .v{text-align:right;min-width:62px}
+.prow .v b{font-size:18px}
+.prow .v small{font-size:12.5px}
+.prow.now{background:#FFF8F8}
+.prow.later{opacity:.45}
+#kPeak.txt{font-size:19px;line-height:1.35}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:10px 4px 0;flex-wrap:wrap}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .note{font-size:12.5px;color:var(--muted);margin:12px 4px 0;line-height:1.55}
@@ -138,8 +158,11 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   <div class="kpis">
     <div class="kpi"><b id="kConv">–</b><span>ปิดการขาย</span><small>บิล ÷ เข้าร้าน</small></div>
     <div class="kpi"><b id="kTalk">–</b><span>ได้พูดคุย</span><small>คุย ÷ เข้าร้าน</small></div>
-    <div class="kpi"><b id="kPeak">–</b><span>ช่วงที่คนเยอะสุด</span><small id="kPeakN">&nbsp;</small></div>
+    <div class="kpi"><b id="kPeak">–</b><span>คนเยอะสุด</span><small id="kPeakN">&nbsp;</small></div>
   </div>
+
+  <div class="label">แบ่งตามช่วงเวลา <span>เข้าร้าน · ปิดการขาย</span></div>
+  <div class="periods" id="periods"></div>
 
   <div class="label">ผู้เข้าร้านรายชั่วโมง <span id="hrInfo"></span></div>
   <div class="chart">
@@ -157,6 +180,16 @@ const RELOGIN = '/?relogin=1&next=' + encodeURIComponent(location.pathname);
 const BRANCHES = ['HES-TMN','HMD-HKT','HMD-CCS','HMD-CWN','HES-KBI','HMD-EMQ','HMD-MVH','HMD-KKC','HMD-CNV'];
 const OPEN_H = 10, CLOSE_H = 22; // ชั่วโมงเปิด–ปิดร้าน (แถบกราฟ 10:00–21:59 · กดนอกช่วงจะเพิ่มแถบให้เอง)
 const NAME = { in:'ลูกค้าเข้าร้าน', talk:'ได้พูดคุย', buy:'ซื้อสินค้า' };
+// ช่วงเวลา (ตามภาพของคุณ Antt) — กดก่อน 10:00 นับเข้าช่วงเช้า, หลัง 22:00 นับเข้าช่วงค่ำ
+const PERIODS = [
+  {name:'ช่วงเช้า',  from:10, to:12},
+  {name:'ช่วงเที่ยง', from:12, to:14},
+  {name:'ช่วงบ่าย',  from:14, to:17},
+  {name:'ช่วงเย็น',  from:17, to:20},
+  {name:'ช่วงค่ำ',   from:20, to:22}
+];
+const periodOf = h => PERIODS.findIndex((p,i)=>h < p.to || i===PERIODS.length-1);
+let selH = null;   // ชั่วโมงที่แตะดูรายละเอียดในกราฟ
 
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,'0');
@@ -214,15 +247,26 @@ function render(){
   const max = Math.max(1, ...hours.map(h=>at(h).in));
   let peak = -1; hours.forEach(h=>{ if(at(h).in>0 && (peak<0 || at(h).in>at(peak).in)) peak=h; });
   const nowH = new Date().getHours();
-  $('kPeak').textContent = peak<0 ? '–' : pad(peak)+':00';
-  $('kPeakN').textContent = peak<0 ? ' ' : at(peak).in+' คน';
+
+  // แบ่งตามช่วงเวลา
+  const per = PERIODS.map(()=>({in:0,talk:0,buy:0}));
+  Object.keys(c).map(Number).forEach(h=>{ const x = per[periodOf(h)]; ['in','talk','buy'].forEach(k=>x[k]+=c[h][k]); });
+  const pmax = Math.max(1, ...per.map(x=>x.in)), nowP = nowH>=OPEN_H && nowH<CLOSE_H ? periodOf(nowH) : -1;
+  let pk = -1; per.forEach((x,i)=>{ if(x.in>0 && (pk<0 || x.in>per[pk].in)) pk=i; });
+  $('periods').innerHTML = PERIODS.map((p,i)=>{ const x = per[i], later = nowH < p.from;
+    return '<div class="prow'+(i===nowP?' now':'')+(i===pk?' peak':'')+(later?' later':'')+'"><div><b>'+p.name+'</b><small>'+pad(p.from)+':00–'+pad(p.to)+':00'+(i===nowP?'<em> · ตอนนี้</em>':'')+'</small></div>'+
+      '<div class="trk"><i style="width:'+Math.round(x.in/pmax*100)+'%"><b style="width:'+(x.in?Math.round(Math.min(x.buy,x.in)/x.in*100):0)+'%"></b></i></div>'+
+      '<div class="v"><b>'+x.in+' คน</b><small>'+(x.in ? pct(x.buy,x.in)+' · '+x.buy+' บิล' : '–')+'</small></div></div>'; }).join('');
+  $('kPeak').textContent = pk<0 ? '–' : PERIODS[pk].name;
+  $('kPeak').classList.toggle('txt', pk>=0);
+  $('kPeakN').textContent = pk<0 ? ' ' : per[pk].in+' คน'+(peak>=0 ? ' · พีค '+pad(peak)+':00' : '');
   $('bars').style.setProperty('--cols', hours.length);
   $('bars').innerHTML = hours.map(h=>{
     const v=at(h).in, b=Math.min(at(h).buy, v);
-    return '<div class="bar'+(h===nowH?' now':'')+(h===peak?' peak':'')+'" title="'+pad(h)+':00 – เข้าร้าน '+v+' · คุย '+at(h).talk+' · ซื้อ '+at(h).buy+'"><em>'+(v||'')+'</em>'+
+    return '<div class="bar'+(h===nowH?' now':'')+(h===peak?' peak':'')+(h===selH?' sel':'')+'" data-h="'+h+'" title=""'+pad(h)+':00 – เข้าร้าน '+v+' · คุย '+at(h).talk+' · ซื้อ '+at(h).buy+'"><em>'+(v||'')+'</em>'+
       '<i style="height:'+Math.round(v/max*70)+'%"><b style="height:'+(v?Math.round(b/v*100):0)+'%"></b></i><span>'+h+'</span></div>';
   }).join('');
-  $('hrInfo').textContent = nowH>=OPEN_H && nowH<CLOSE_H ? 'ชั่วโมงนี้ '+at(nowH).in+' คน' : '';
+  $('hrInfo').textContent = selH!=null ? pad(selH)+':00–'+pad(selH)+':59 · เข้า '+at(selH).in+' · คุย '+at(selH).talk+' · ซื้อ '+at(selH).buy+' บิล' : 'แตะแท่งเพื่อดูรายละเอียด';
   const w = pending.length + deletes.length;
   $('sync').textContent = hubState==='auth' ? '' : w ? 'รอส่ง '+w+' รายการ' : hubState==='ok' ? 'บันทึกแล้ว' : '';
   $('sync').classList.toggle('wait', !!w);
@@ -292,6 +336,8 @@ let tt; function toast(m){ const el=$('toast'); el.textContent=m; el.classList.a
 /* ===== ปุ่ม ===== */
 $('tap').addEventListener('click',()=>{ add('in',1); const t=$('tap'); t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop'); });
 document.addEventListener('click',e=>{
+  const bar=e.target.closest('.bar[data-h]');
+  if(bar){ const h=Number(bar.dataset.h); selH = selH===h ? null : h; render(); return; }
   const b=e.target.closest('button'); if(!b) return;
   if(b.dataset.add){ add('in', Number(b.dataset.add)); toast('+'+b.dataset.add+' คน'); }
   else if(b.dataset.plus) add(b.dataset.plus, 1);
