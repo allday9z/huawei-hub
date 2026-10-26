@@ -8,7 +8,8 @@
 //   rec:check:<BRANCH>:<YYYY-MM-DD> -> { submissions: Checklist[] }   (Morning Store Checklist, Antt 22 Oct 2026:
 //     the checklist only went to the Google Sheet, so /records never saw it — now it is saved here too)
 //   rec:foot:<BRANCH>:<YYYY-MM-DD>  -> { entries: FootTap[] }   (Foot Traffic, Antt 26 Oct 2026: staff tap +1 for each
-//     person who walks into the shop / walks past the front; deleted taps kept with deletedAt like ST)
+//     customer who walks in (+2/+3/+4 for a group), talks / gets a demo, or buys — Antt's own page design the same day;
+//     deleted taps kept with deletedAt like ST)
 // Deleted ST entries are kept with deletedAt / deletedBy (audit) and left out of reads.
 // Who: the device session cookie (set by the portal after Google sign-in) + this email's menus on ⚙️.
 import ExcelJS from "exceljs"
@@ -105,8 +106,10 @@ function cleanCheck(c: any, email: string) {
   }
 }
 /* ---------------- Foot Traffic ---------------- */
-// kind: "in" = walked into the shop, "pass" = walked past the front without coming in
-const FOOT_KINDS = { in: "เดินเข้าร้าน", pass: "เดินผ่านหน้าร้าน" } as Record<string, string>
+// kind: "in" = customers who walked in (qty = group size), "talk" = talked to / got a demo, "buy" = bought (1 per bill)
+// "pass" (walked past without coming in) is from the first version (26 Oct 2026): still read, no longer offered on the page
+const FOOT_KINDS = { in: "ลูกค้าเข้าร้าน", talk: "ได้พูดคุย / สาธิต", buy: "ซื้อสินค้า (บิล)", pass: "เดินผ่านหน้าร้าน" } as Record<string, string>
+const FOOT_ZERO = () => ({ in: 0, talk: 0, buy: 0, pass: 0 }) as Record<string, number>
 const DEVICE_CATS = new Set(["phone", "tablet", "watch", "audio", "iot"])
 function cleanFoot(e: any, email: string) {
   if (!ID.test(String(e?.id)) || !BRANCH_CODES.has(e?.branch) || !DAY.test(String(e?.date)) || !FOOT_KINDS[e?.kind]) return null
@@ -198,8 +201,9 @@ async function exportXlsx(url: URL): Promise<Response> {
     const HOURS = Array.from({ length: 14 }, (_, i) => String(i + 9).padStart(2, "0"))   // 09:00 – 22:00
     ws.columns = [
       { header: "วันที่", key: "date", width: 12 }, { header: "สาขา", key: "branch", width: 10 }, { header: "ชื่อสาขา", key: "bname", width: 26 },
-      { header: "เดินเข้าร้าน (คน)", key: "in", width: 14 }, { header: "เดินผ่านหน้าร้าน (คน)", key: "pass", width: 17 }, { header: "อัตราเข้าร้าน %", key: "capture", width: 13 },
-      { header: "ขายเครื่อง (ST)", key: "devices", width: 13 }, { header: "อัตราซื้อ %", key: "conv", width: 11 },
+      { header: "ลูกค้าเข้าร้าน (คน)", key: "in", width: 15 }, { header: "ได้พูดคุย / สาธิต", key: "talk", width: 15 }, { header: "ซื้อสินค้า (บิล)", key: "buy", width: 14 },
+      { header: "ปิดการขาย % (บิล ÷ เข้าร้าน)", key: "conv", width: 15 }, { header: "ได้พูดคุย % (คุย ÷ เข้าร้าน)", key: "talkPct", width: 15 },
+      { header: "ขายเครื่อง (ST)", key: "devices", width: 13 }, { header: "เดินผ่านหน้าร้าน (คน)", key: "pass", width: 17 },
       ...HOURS.map(h => ({ header: `เข้าร้าน ${h}:00`, key: "h" + h, width: 10 })), { header: "นอกช่วงเวลา", key: "hx", width: 11 },
     ]
     const stDev: Record<string, number> = {}
@@ -211,14 +215,15 @@ async function exportXlsx(url: URL): Promise<Response> {
       if (!inRange(k)) continue
       const [, , br, day] = k.split(":"), live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
       if (!live.length) continue
-      const row: any = { date: day, branch: br, bname: branchName(br), in: 0, pass: 0, devices: stDev[br + ":" + day] ?? 0, hx: 0 }
+      const row: any = { date: day, branch: br, bname: branchName(br), ...FOOT_ZERO(), devices: stDev[br + ":" + day] ?? 0, hx: 0 }
       for (const h of HOURS) row["h" + h] = 0
       for (const e of live) {
-        row[e.kind] += e.qty
+        if (e.kind in row) row[e.kind] += e.qty
         if (e.kind === "in") { const h = footHour(e); if (HOURS.includes(h)) row["h" + h] += e.qty; else row.hx += e.qty }
       }
-      row.capture = row.in + row.pass ? Math.round(row.in / (row.in + row.pass) * 100) : ""
-      row.conv = row.in ? Math.round(row.devices / row.in * 100) : ""
+      row.conv = row.in ? Math.round(row.buy / row.in * 100) : ""
+      row.talkPct = row.in ? Math.round(row.talk / row.in * 100) : ""
+      if (!row.pass) row.pass = ""
       ws.addRow(row); count++
     }
     head(ws)
@@ -290,18 +295,18 @@ async function summary(url: URL) {
   }
   const checklist = { sends: ck.sends, byDay: ck.byDay, today: ck.today, failItems: top(ck.failItems, 10),
     byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 100) : 0, last: b.last }])) }
-  // Foot Traffic: people in / past the shop, by branch, day and hour (+ device sales of the same branch for the buy rate)
-  const ft = { in: 0, pass: 0, byBranch: {} as Record<string, { in: number; pass: number; days: number }>, byDay: {} as Record<string, number>, byHour: {} as Record<string, { in: number; pass: number }> }
+  // Foot Traffic: customers in / talked to / bills, by branch, day and hour (+ device sales of the same branch from ST)
+  const ft = { ...FOOT_ZERO(), byBranch: {} as Record<string, Record<string, number>>, byDay: {} as Record<string, number>, byHour: {} as Record<string, Record<string, number>> } as any
   for (const { key: k, value } of await store.list("rec:foot:")) {
     if (!inRange(k)) continue
     const [, , br, day] = k.split(":"), live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
     if (!live.length) continue
-    const b = (ft.byBranch[br] ??= { in: 0, pass: 0, days: 0 }); b.days++
+    const b = (ft.byBranch[br] ??= { ...FOOT_ZERO(), days: 0 }); b.days++
     for (const e of live) {
-      const kind = e.kind === "pass" ? "pass" : "in"
+      const kind = FOOT_KINDS[e.kind] ? e.kind : "in"
       ft[kind] += e.qty; b[kind] += e.qty
       if (kind === "in") bump(ft.byDay, day, e.qty)
-      const h = footHour(e); if (h) { const x = (ft.byHour[h] ??= { in: 0, pass: 0 }); x[kind] += e.qty }
+      const h = footHour(e); if (h) { const x = (ft.byHour[h] ??= FOOT_ZERO()); x[kind] += e.qty }
     }
   }
   const foot = { ...ft, devices: Object.fromEntries(Object.entries(st.byBranch).map(([br, x]) => [br, [...DEVICE_CATS].reduce((a, c) => a + (x[c] ?? 0), 0)])) }
@@ -365,18 +370,18 @@ async function activity(url: URL): Promise<Response> {
   // Foot Traffic: one row per email + branch + day (taps are many) — totals and first / last tap
   for (const { key: k, value } of await store.list("rec:foot:")) {
     if (!inRange(k)) continue
-    const [, , branch, day] = k.split(":"), by = new Map<string, { email: string; in: number; pass: number; first: string; last: string }>()
+    const [, , branch, day] = k.split(":"), by = new Map<string, { email: string; n: Record<string, number>; first: string; last: string }>()
     for (const e of value?.entries ?? []) {
       if (e.deletedAt) continue
       const at = validIso(e.ts) || validIso(e.savedAt), c = canonEmail(e.savedBy || "")
       if (!at || !c) continue
-      const x = by.get(c) ?? { email: e.savedBy, in: 0, pass: 0, first: at, last: at }
-      x[e.kind === "pass" ? "pass" : "in"] += e.qty || 1
+      const x = by.get(c) ?? { email: e.savedBy, n: FOOT_ZERO(), first: at, last: at }
+      x.n[FOOT_KINDS[e.kind] ? e.kind : "in"] += e.qty || 1
       if (at < x.first) x.first = at; if (at > x.last) x.last = at
       by.set(c, x)
     }
     for (const x of by.values())
-      add({ at: x.first, day, email: x.email, branch, app: "foot", action: "นับ Foot Traffic", detail: `เดินเข้าร้าน ${x.in} · เดินผ่าน ${x.pass} · ${bkkTime(x.first)}–${bkkTime(x.last)} น.` })
+      add({ at: x.first, day, email: x.email, branch, app: "foot", action: "นับ Foot Traffic", detail: `เข้าร้าน ${x.n.in} · พูดคุย ${x.n.talk} · ซื้อ ${x.n.buy} บิล${x.n.pass ? ` · เดินผ่าน ${x.n.pass}` : ""} · ${bkkTime(x.first)}–${bkkTime(x.last)} น.` })
   }
   // opened the hub: one row per email per day (first – last time)
   const lockOf = (email: string) => lockedBranchFor(logins.find(l => canonEmail(l.email) === canonEmail(email)), isOwnerEmail(email)) ?? ""
@@ -486,7 +491,9 @@ export async function recordsRoute(req: Request, url: URL): Promise<Response | n
       // Service (Walk-in) on the ST Report counts customers served on the Service Case page (one per visit).
       const visits = new Map<string, string>()
       for (const c of cases) if (!visits.has(c.visitId || c.id)) visits.set(c.visitId || c.id, c.time)
-      return json({ ok: true, st: st.entries.filter(e => !e.deletedAt), stSent: stSent(st.reports), cases: [...visits.values()].map(time => ({ time })) })
+      // Foot Traffic of the same day goes on the ST Report text (customers walked in, per round)
+      const foot = (await footDay(branch, day)).filter(e => !e.deletedAt && e.kind !== "pass").map(e => ({ time: e.time, kind: e.kind, qty: e.qty }))
+      return json({ ok: true, st: st.entries.filter(e => !e.deletedAt), stSent: stSent(st.reports), cases: [...visits.values()].map(time => ({ time })), foot })
     }
     if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405)
     let b: any; try { b = await req.json() } catch { return json({ ok: false, error: "bad request" }, 400) }

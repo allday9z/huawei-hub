@@ -44,6 +44,9 @@ button{cursor:pointer}
 select{appearance:none;background:var(--chip) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6e73'/%3E%3C/svg%3E") no-repeat right 12px center;
   border:1px solid transparent;border-radius:12px;padding:10px 30px 10px 12px;width:100%;font-weight:500}
 select.empty{border-color:var(--red);background-color:var(--red-t)}
+.staffOther{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;outline:none;font-weight:500}
+.staffOther:focus{border-color:var(--ink)}
+.staffOther.empty{border-color:var(--red);background:var(--red-t)}
 
 .label{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin:18px 4px 8px;display:flex;justify-content:space-between;align-items:baseline}
 .label span{font-weight:400;font-size:12px}
@@ -149,6 +152,7 @@ select.empty{border-color:var(--red);background-color:var(--red-t)}
         </div>
         <div class="keep" id="keep" hidden></div>
         <div class="who"><label for="staff">ผู้บันทึก</label><select id="staff"></select></div>
+        <input class="staffOther" id="staffOther" type="text" maxlength="60" placeholder="พิมพ์ชื่อผู้บันทึก เช่น สมชาย ใจดี (ชาย)" autocomplete="name" hidden>
       </div>
     </section>
 
@@ -346,6 +350,8 @@ const hm = d => pad(d.getHours())+':'+pad(d.getMinutes());
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
 // ตัดชื่อเล่นในวงเล็บ เช่น "จักรพงศ์ แซ่อิ้ว (เคน)" -> "จักรพงศ์ แซ่อิ้ว"
+const STAFF_OTHER = '__other__';
+let staffOther = false;   // เลือก "ระบุชื่อ" อยู่ (ยังพิมพ์ไม่เสร็จก็ยังเปิดช่องพิมพ์ไว้)
 const nick = n => String(n||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
@@ -359,6 +365,7 @@ const verified = () => !!settings.session && !!settings.branch && (settings.allo
 let round = new Date().getHours() < 15 ? 1 : 2;
 let remote = [];          // รายการจากชีตของสาขาวันนี้
 let svcCases = [];        // เคสบริการจากหน้า Fail Case (เวลา HH:MM)
+let footTaps = [];        // Foot Traffic ของสาขาวันนี้ {time, kind, qty} — ลูกค้าเข้าร้านขึ้นในข้อความรายงานให้เอง
 const weekAgo = ymd(new Date(Date.now()-7*864e5));
 let pending = store.get('st_pending', []).filter(e=>e.date>=weekAgo);   // รายการที่เพิ่มในเครื่องนี้แต่ยังไม่ได้ส่ง (เก็บไว้ 7 วัน)
 let deletes = store.get('st_deletes', []);   // id ที่ลบแต่ยังไม่ได้ส่ง
@@ -383,6 +390,7 @@ function modelLines(list,k){
   return Object.keys(m).map(x=>[x,m[x]]);
 }
 const serviceAuto = () => svcCases.filter(t=>inRound(t)).length;
+const footIn = () => footTaps.filter(e=>e.kind==='in' && inRound(e.time||'')).reduce((a,e)=>a+(Number(e.qty)||1),0);
 
 /* ===== แสดงผล ===== */
 function render(){
@@ -411,8 +419,15 @@ function render(){
   // รายชื่อทีมจากหน้าตั้งค่า ⚙️ (team.js) — พนักงานสาขานี้ก่อน ตามด้วยทีมที่ดูแลทุกสาขา
   const staff = ENDPOINT ? (settings.staffList||[]) : (window.hubTeamFor ? window.hubTeamFor(settings.branch) : DEMO_STAFF);
   const sel = $('staff');
-  sel.innerHTML = '<option value="">เลือกชื่อ</option>'+staff.map(s=>'<option'+(s===settings.staff?' selected':'')+'>'+esc(s)+'</option>').join('');
-  sel.classList.toggle('empty', !settings.staff);
+  // "ระบุชื่อ" (คุณ Antt 26 Oct 2026): คนที่ยังไม่มีในรายชื่อ (พนักงานใหม่ / ยืมตัวจากสาขาอื่น) พิมพ์ชื่อเองได้
+  const other = staffOther || (!!settings.staff && !staff.includes(settings.staff));
+  sel.innerHTML = '<option value="">เลือกชื่อ</option>'+staff.map(s=>'<option'+(!other && s===settings.staff?' selected':'')+'>'+esc(s)+'</option>').join('')+
+    '<option value="'+STAFF_OTHER+'"'+(other?' selected':'')+'>✏️ ระบุชื่อ (ไม่มีในรายการ)</option>';
+  sel.classList.toggle('empty', !settings.staff && !other);
+  const inp = $('staffOther');
+  inp.hidden = !other;
+  if(other && document.activeElement!==inp) inp.value = settings.staff;
+  inp.classList.toggle('empty', other && !settings.staff);
 
   const list = roundEntries();
   $('devices').innerHTML = DEVICES.map(d=>{
@@ -453,7 +468,7 @@ function render(){
 /* ===== เพิ่ม / ลบ ===== */
 function add(cat, model, opt, qty){
   opt = opt || {};
-  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); (staffOther ? $('staffOther') : $('staff')).focus(); return; }
   const now = new Date();
   pending.push({id:uid(), ts:now.toISOString(), date:ymd(now), time:hm(now), branch:settings.branch, cat, model:model||'', color:opt.color||'', size:opt.size||'', qty:qty||1, staff:settings.staff});
   persist(); render(); sync();
@@ -471,7 +486,7 @@ function del(id){
 /* ===== เลือกรุ่น ===== */
 let pickCat = null, pickModel = '', pickQty = 1, pickSize = '';
 function openPick(k){
-  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); (staffOther ? $('staffOther') : $('staff')).focus(); return; }
   const d = PICKABLE.find(x=>x.k===k); pickCat=k; pickModel=''; pickQty=1;
   $('colorReq').hidden = !!d.colorOptional;
   $('pickTitle').textContent = 'เพิ่ม '+d.name;
@@ -504,7 +519,9 @@ function report(){
   const list = roundEntries(), d = new Date();
   const dateTxt = pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(-2);
   const L = [];
-  L.push('📆 Date: '+dateTxt, '🕛 ST Period: '+ROUND_LABEL[round], '🏬 Branch: '+settings.branch, '', 'Device ST Report');
+  L.push('📆 Date: '+dateTxt, '🕛 ST Period: '+ROUND_LABEL[round], '🏬 Branch: '+settings.branch);
+  if(footTaps.length) L.push('👣 ลูกค้าเข้าร้าน : '+footIn()+' คน');   // จากหน้า Foot Traffic (เฉพาะสาขาที่ใช้นับ)
+  L.push('', 'Device ST Report');
   DEVICES.forEach(x=>{
     L.push(x.emoji+' '+x.name+' : '+sumOf(list,x.k)+' '+x.unit);
     modelLines(list,x.k).forEach(l=>L.push('•'+l[0]+' = '+l[1]));
@@ -529,7 +546,7 @@ function totals(){
 }
 let shareText = '';
 function openShare(){
-  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); $('staff').focus(); return; }
+  if(!settings.staff){ toast('เลือกชื่อผู้บันทึกก่อน'); (staffOther ? $('staffOther') : $('staff')).focus(); return; }
   if(round===1 && hm(new Date()) < ROUND1_END) toast('ยังไม่ถึง 15:00 ตัวเลขจะนับถึงตอนนี้');
   shareText = report();
   $('shareTitle').textContent = 'รายงาน'+ROUND_LABEL[round].replace(/^รอบ (\d).*/,' รอบ $1');
@@ -583,6 +600,7 @@ function hubLoad(){
         remote = (d.st||[]).map(e=>Object.assign(e,{date:day}));
         sentRemote = d.stSent || {};
         svcCases = (d.cases||[]).map(c=>c.time||'').filter(Boolean);
+        footTaps = Array.isArray(d.foot) ? d.foot : [];
         sync();
       } else hubState = (s===401||s===403) ? 'auth' : 'error';
       render();
@@ -658,7 +676,12 @@ document.addEventListener('click', e=>{
   else if(t.dataset.s){ pickSize = pickSize===t.dataset.s ? '' : t.dataset.s; drawPick(); if(pickSize===SIZE_OTHER) $('pickSizeOther').focus(); }
 });
 function confirmDel(e){ return true; } // ลบได้ทันที (ไม่ใช้กล่องยืนยันของเบราว์เซอร์)
-$('staff').onchange = e=>{ settings.staff=e.target.value; saveSettings(); render(); };
+$('staff').onchange = e=>{
+  staffOther = e.target.value===STAFF_OTHER;
+  settings.staff = staffOther ? '' : e.target.value; saveSettings(); render();
+  if(staffOther) $('staffOther').focus();
+};
+$('staffOther').oninput = e=>{ settings.staff = e.target.value.replace(/\s+/g,' ').trim(); saveSettings(); render(); };
 $('qMinus').onclick=()=>{ pickQty=Math.max(1,pickQty-1); drawPick(); };
 $('qPlus').onclick=()=>{ pickQty=Math.min(99,pickQty+1); drawPick(); };
 $('pickOther').oninput=drawPick;
@@ -689,7 +712,7 @@ try{
 // โหมดทดลอง: เลือกสาขาเอง
 if(!ENDPOINT){
   $('demoBranch').innerHTML='<option value="">เลือกสาขา</option>'+BRANCHES.map(b=>'<option'+(b===settings.branch?' selected':'')+'>'+b+'</option>').join('');
-  $('demoBranch').onchange=e=>{ settings.branch=e.target.value; saveSettings(); remote=[]; sentRemote={}; svcCases=[]; render(); load(); };
+  $('demoBranch').onchange=e=>{ settings.branch=e.target.value; saveSettings(); remote=[]; sentRemote={}; svcCases=[]; footTaps=[]; render(); load(); };
 }
 
 render(); load(); sync();

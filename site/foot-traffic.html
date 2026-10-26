@@ -3,107 +3,89 @@
 <head>
 <meta charset="utf-8">
 <script src="/auth-guard.js"></script>
-<script src="/team.js"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Foot Traffic</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Foot Traffic (Antt, 26 Oct 2026): นับคนที่หน้าสาขา — แตะ +1 ทุกครั้งที่มีคนเดินเข้าร้าน / เดินผ่านหน้าร้าน
-   บันทึกเข้า HUAWEI Hub แยกสาขา/วัน (ทุกเครื่องของสาขาเห็นยอดเดียวกัน) ใช้คิวในเครื่องแบบเดียวกับ ST Report */
-:root{
-  --bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;
-  --red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC;--warn:#A15C00;--warn-t:#FFF3DC;--blue:#2563EB;--blue-t:#E8EFFD;
-}
+/* Foot Traffic — หน้าตาตามแบบของคุณ Antt (traffic_1.html, 26 Oct 2026): แตะทุกครั้งที่มีลูกค้าเข้าร้าน (+2/+3/+4 มาเป็นกลุ่ม),
+   ได้พูดคุย / สาธิต, ซื้อสินค้า (บิล) · บันทึกเข้า HUAWEI Hub แยกสาขา/วัน (ทุกเครื่องของสาขาเห็นยอดเดียวกัน) ใช้คิวในเครื่องแบบ ST Report */
+:root{--bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;--red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC;--blue:#1F5FBF;--blue-t:#E8F0FC}
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
 body{font-family:'IBM Plex Sans Thai',-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif;color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased;
-  background:linear-gradient(180deg,#F9E1E2 0,var(--bg) 320px) no-repeat,var(--bg)}
-button,input,select{font:inherit;color:inherit}
-button{cursor:pointer;-webkit-tap-highlight-color:transparent}
-.wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
-
-.hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:4px 4px 14px}
+  background:linear-gradient(180deg,#F9E1E2 0,var(--bg) 320px) no-repeat,var(--bg);-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:720px;margin:0 auto;padding:16px 16px calc(40px + var(--hub-dock,0px))}
+.hello{display:flex;justify-content:space-between;align-items:flex-end;padding:4px 4px 14px}
 .hello small{display:block;font-size:12px;font-weight:700;color:var(--red);letter-spacing:1px}
 .hello h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
-.hello a{font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.sync{font-size:12px;color:var(--muted)}
+.sync.wait{color:#A15C00}
 
+.band{background:linear-gradient(120deg,var(--red),var(--red2));color:#fff;border-radius:24px 24px 0 0;padding:14px 20px;display:flex;justify-content:space-between;align-items:center}
+.band b{font-size:17px}.band span{font-size:13px;opacity:.9}
+.band .r{display:flex;align-items:center;gap:10px}
+.swb{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:6px 11px;font-size:12.5px;font-weight:600;white-space:nowrap}
 .hero{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;margin-bottom:14px}
-.hero .band{background:linear-gradient(120deg,var(--red),var(--red2));color:#fff;padding:14px 20px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.hero .band b{font-size:17px}
-.hero .band span{font-size:13px;opacity:.9}
-.swb{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap}
-.hero .body{padding:14px 20px 16px}
-.who{display:flex;align-items:center;gap:10px}
-.who label{font-size:13px;color:var(--muted);white-space:nowrap}
-select{appearance:none;background:var(--chip) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6e73'/%3E%3C/svg%3E") no-repeat right 12px center;
-  border:1px solid transparent;border-radius:12px;padding:10px 30px 10px 12px;width:100%;font-weight:500}
-.how{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+.hero .in{padding:18px 18px 16px}
 
-/* ปุ่มนับ */
-.taps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tap{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.tap .h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14.5px;line-height:1.3}
-.tap .ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:none}
-.tap .ic svg{width:19px;height:19px}
-.tap.in .ic{background:var(--red-t);color:var(--red)}
-.tap.pass .ic{background:var(--blue-t);color:var(--blue)}
-.tap .num{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
-.tap .num small{font-size:14px;font-weight:500;color:var(--muted);margin-left:4px}
-.tap .plus{border:0;border-radius:18px;min-height:96px;font-size:30px;font-weight:700;color:#fff;touch-action:manipulation;transition:transform .08s}
-.tap .plus small{display:block;font-size:13px;font-weight:600;opacity:.9}
-.tap .plus:active{transform:scale(.97)}
-.tap.in .plus{background:var(--red)}
-.tap.pass .plus{background:var(--blue)}
-.tap .minus{border:0;background:var(--chip);border-radius:12px;padding:9px 0;font-size:13.5px;font-weight:600;color:#3A3A3C}
-.tap .minus:disabled{opacity:.4}
-.tap .sub{font-size:12px;color:var(--muted)}
-.tap.bump .num{animation:bump .25s}
-@keyframes bump{50%{transform:scale(1.12)}}
+/* ปุ่มนับหลัก */
+.tap{width:100%;border:0;border-radius:22px;background:var(--ink);color:#fff;padding:22px 16px 18px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  box-shadow:0 6px 18px rgba(0,0,0,.15);transition:transform .08s}
+.tap:active{transform:scale(.97)}
+.tap .n{font-size:64px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.tap .l{font-size:15px;font-weight:600;opacity:.9}
+.tap .h{font-size:12.5px;opacity:.6;margin-top:4px}
+.tap.pop .n{animation:pop .25s}
+@keyframes pop{40%{transform:scale(1.12)}}
+.grp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.grp button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 0;font-weight:700;font-size:16px}
+.grp button:active{background:var(--chip)}
+.grp button:disabled{opacity:.4}
+.grp .undo{font-size:13.5px;font-weight:600;color:var(--muted)}
 
-.label{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin:18px 4px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.label span{font-weight:400;font-size:12px;text-align:right}
-.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-@media(min-width:560px){.kpis{grid-template-columns:repeat(4,1fr)}}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px;min-width:0}
-.kpi span{display:block;font-size:12.5px;color:var(--muted)}
-.kpi b{display:block;font-size:24px;font-weight:700;margin-top:2px}
-.kpi b small{font-size:12.5px;font-weight:500;color:var(--muted);margin-left:3px}
-.kpi i{display:block;font-style:normal;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.sub{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.sub .t{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.sub .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+.sub .ic svg{width:18px;height:18px}
+.sub.talk .ic{background:var(--blue-t);color:var(--blue)}
+.sub.buy .ic{background:var(--ok-t);color:var(--ok)}
+.sub .n{font-size:32px;font-weight:700;line-height:1}
+.sub .ctl{display:flex;gap:6px}
+.sub .ctl button{flex:1;border:0;border-radius:11px;padding:10px 0;font-weight:700;font-size:16px;background:var(--chip)}
+.sub .ctl .add{background:var(--ink);color:#fff;flex:2}
+.sub .ctl button:disabled{opacity:.35}
+.sub .ctl button:active{transform:scale(.96)}
 
-/* รายชั่วโมง */
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px}
-.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.label{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin:4px 4px 8px;display:flex;justify-content:space-between}
+.label span{font-weight:400}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px}
+.kpi b{display:block;font-size:24px;font-weight:700;line-height:1.1}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+
+.chart{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px 12px 10px}
+.bars{display:grid;grid-template-columns:repeat(var(--cols,12),1fr);gap:5px;align-items:end;height:170px}
+.bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+.bar i{display:block;width:100%;max-width:26px;border-radius:6px 6px 3px 3px;background:#E3E3E8;min-height:3px;position:relative;transition:height .3s}
+.bar i b{position:absolute;inset:auto 0 0 0;border-radius:inherit;background:var(--ok)}
+.bar.now i{background:#F3B4B7}
+.bar.now i{outline:2px solid var(--red);outline-offset:1px}
+.bar.peak i{background:var(--red)}
+.bar em{font-style:normal;font-size:11px;font-weight:600;color:var(--ink);min-height:14px}
+.bar span{font-size:10.5px;color:var(--muted)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:10px 4px 0;flex-wrap:wrap}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.hours{display:flex;align-items:flex-end;gap:4px;height:150px}
-.hours .c{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
-.hours .st{width:100%;display:flex;flex-direction:column-reverse;flex:none;border-radius:6px 6px 0 0;overflow:hidden}
-.hours .st i{display:block;width:100%}
-.hours .st i.in{background:var(--red)}
-.hours .st i.pass{background:#9DB8F5}
-.hours .v{font-size:11px;font-weight:700;min-height:14px}
-.hours small{font-size:10.5px;color:var(--muted)}
-.hours .c.now small{color:var(--red);font-weight:700}
-
-.list{background:var(--card);border:1px solid var(--line);border-radius:18px}
-.row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}
-.row time{font-size:13px;color:var(--muted);width:42px;flex:none}
-.row .t{flex:1;min-width:0;font-size:14px}
-.row .t small{display:block;font-size:12px;color:var(--muted)}
-.row .del{border:0;background:none;color:var(--muted);font-size:18px;padding:2px 6px}
-.row.pending .t small::after{content:" · รอส่ง";color:var(--warn)}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.empty{padding:18px;text-align:center;color:var(--muted);font-size:14px}
-.more{display:block;width:100%;border:0;background:none;padding:10px;color:var(--red);font-weight:600;font-size:13.5px;border-top:1px solid var(--line)}
-
+.note{font-size:12.5px;color:var(--muted);margin:12px 4px 0;line-height:1.55}
+.demo{background:#FFF3DC;color:#A15C00;border-radius:12px;padding:8px 12px;font-size:13px;margin-bottom:12px;line-height:1.45}
+.demo a{color:inherit;font-weight:700}
 .gate{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px;text-align:center}
 .gate h2{font-size:19px;margin-bottom:6px}
 .gate p{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5}
-.btn{border:0;border-radius:999px;padding:12px 18px;font-weight:600;white-space:nowrap}
-.btn.red{background:var(--red);color:#fff}
-.demo{background:var(--warn-t);color:var(--warn);border-radius:12px;padding:8px 12px;font-size:13px;margin-bottom:12px;line-height:1.45}
-.demo a{color:inherit;font-weight:700}
-.toast{position:fixed;left:50%;bottom:calc(24px + var(--hub-dock,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.btn{display:inline-block;text-decoration:none;border:0;border-radius:999px;padding:12px 18px;font-weight:600;background:var(--red);color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--hub-dock,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 </style>
 </head>
@@ -111,52 +93,60 @@ select{appearance:none;background:var(--chip) url("data:image/svg+xml,%3Csvg xml
 <div class="wrap">
   <header class="hello">
     <div><small>HUAWEI HUB BY UFICON</small><h1>Foot Traffic</h1></div>
-    <a href="/">กลับหน้าแรก</a>
+    <span class="sync" id="sync"></span>
   </header>
-
   <div class="demo" id="demo" hidden></div>
 
   <section class="gate" id="gate" hidden>
     <h2>เลือกสาขาก่อน</h2>
     <p>เลือกสาขาของเครื่องนี้ก่อนเริ่มนับ</p>
-    <a class="btn red" style="display:inline-block;text-decoration:none" href="/?switch=branch&amp;next=/foot-traffic">เลือกสาขา</a>
+    <a class="btn" href="/?switch=branch&amp;next=/foot-traffic">เลือกสาขา</a>
   </section>
 
   <main id="app" hidden>
-    <section class="hero">
-      <div class="band"><div><b id="brName">-</b><br><span id="today">-</span></div><button type="button" class="swb" id="swb">เปลี่ยนสาขา</button></div>
-      <div class="body">
-        <div class="who"><label for="staff">ผู้นับ</label><select id="staff"></select></div>
-        <p class="how">แตะ <b>+1</b> ทุกครั้งที่มีคน 1 คน · มากัน 3 คนแตะ 3 ครั้ง · กดผิดแตะ "−1 กดผิด" ได้ทันที</p>
-      </div>
-    </section>
-
-    <div class="taps">
-      <div class="tap in" id="tapIn">
-        <div class="h"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M10 21v-6h4v6"/></svg></span>เดินเข้าร้าน</div>
-        <div class="num" id="nIn">0<small>คน</small></div>
-        <button type="button" class="plus" data-add="in">+1<small>มีคนเดินเข้าร้าน</small></button>
-        <button type="button" class="minus" data-undo="in">−1 กดผิด</button>
-      </div>
-      <div class="tap pass" id="tapPass">
-        <div class="h"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.5" r="2"/><path d="m9 21 3-7 3 3v4"/><path d="M6.5 12 9 8.5l3.5-.5 3 3.5 3 .5"/></svg></span>เดินผ่านหน้าร้าน</div>
-        <div class="num" id="nPass">0<small>คน</small></div>
-        <button type="button" class="plus" data-add="pass">+1<small>เดินผ่าน ไม่เข้าร้าน</small></button>
-        <button type="button" class="minus" data-undo="pass">−1 กดผิด</button>
+  <section class="hero">
+    <div class="band"><b id="br">-</b><span class="r"><span id="today">-</span><button type="button" class="swb" id="swb">เปลี่ยน</button></span></div>
+    <div class="in">
+      <button class="tap" id="tap" type="button">
+        <span class="n" id="nIn">0</span>
+        <span class="l">ลูกค้าเข้าร้าน (คน)</span>
+        <span class="h">แตะ 1 ครั้ง = 1 คน</span>
+      </button>
+      <div class="grp">
+        <button type="button" data-add="2">+2</button>
+        <button type="button" data-add="3">+3</button>
+        <button type="button" data-add="4">+4</button>
+        <button type="button" class="undo" id="undo">ย้อนกลับ</button>
       </div>
     </div>
+  </section>
 
-    <div class="label">สรุปวันนี้ <span id="sumInfo"></span></div>
-    <div class="kpis" id="kpis"></div>
-
-    <div class="label">รายชั่วโมง <span>เวลาตามเครื่องที่กด</span></div>
-    <div class="card">
-      <div class="legend"><span><i style="background:var(--red)"></i>เดินเข้าร้าน</span><span><i style="background:#9DB8F5"></i>เดินผ่านหน้าร้าน</span></div>
-      <div class="hours" id="hours"></div>
+  <div class="two">
+    <div class="sub talk">
+      <div class="t"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.8 7L4 20.5l1.5-4.6A8 8 0 1 1 21 12z"/></svg></span>ได้พูดคุย / สาธิต</div>
+      <div class="n" id="nTalk">0</div>
+      <div class="ctl"><button type="button" data-minus="talk">−</button><button type="button" class="add" data-plus="talk">+1</button></div>
     </div>
+    <div class="sub buy">
+      <div class="t"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 7V6a3 3 0 0 1 6 0v1"/></svg></span>ซื้อสินค้า (บิล)</div>
+      <div class="n" id="nBuy">0</div>
+      <div class="ctl"><button type="button" data-minus="buy">−</button><button type="button" class="add" data-plus="buy">+1</button></div>
+    </div>
+  </div>
 
-    <div class="label">บันทึกวันนี้ <span id="listInfo"></span></div>
-    <div class="list" id="list"></div>
+  <div class="label">สรุปวันนี้</div>
+  <div class="kpis">
+    <div class="kpi"><b id="kConv">–</b><span>ปิดการขาย</span><small>บิล ÷ เข้าร้าน</small></div>
+    <div class="kpi"><b id="kTalk">–</b><span>ได้พูดคุย</span><small>คุย ÷ เข้าร้าน</small></div>
+    <div class="kpi"><b id="kPeak">–</b><span>ช่วงที่คนเยอะสุด</span><small id="kPeakN">&nbsp;</small></div>
+  </div>
+
+  <div class="label">ผู้เข้าร้านรายชั่วโมง <span id="hrInfo"></span></div>
+  <div class="chart">
+    <div class="bars" id="bars"></div>
+    <div class="legend"><span><i style="background:#E3E3E8"></i>ผู้เข้าร้าน</span><span><i style="background:var(--ok)"></i>ซื้อ</span><span><i style="background:var(--red)"></i>ชั่วโมงที่คนเยอะสุด</span></div>
+  </div>
+  <p class="note">นับเฉพาะลูกค้าที่เดินเข้ามาในร้าน (ไม่นับพนักงาน และคนที่เดินผ่านหน้าร้าน) · มาเป็นกลุ่มให้นับทุกคน · ทุกเครื่องในสาขาเห็นยอดเดียวกัน · ยอดผู้เข้าร้านจะไปขึ้นในรายงาน ST Report ให้อัตโนมัติ</p>
   </main>
 </div>
 <div class="toast" id="toast"></div>
@@ -165,15 +155,13 @@ select{appearance:none;background:var(--chip) url("data:image/svg+xml,%3Csvg xml
 const HUB_API = '/api/rec/foot';
 const RELOGIN = '/?relogin=1&next=' + encodeURIComponent(location.pathname);
 const BRANCHES = ['HES-TMN','HMD-HKT','HMD-CCS','HMD-CWN','HES-KBI','HMD-EMQ','HMD-MVH','HMD-KKC','HMD-CNV'];
-const KIND = { in:'เดินเข้าร้าน', pass:'เดินผ่านหน้าร้าน' };
-const HOURS = ['10','11','12','13','14','15','16','17','18','19','20','21'];   // เวลาเปิดร้าน (นอกช่วงจะเพิ่มคอลัมน์ให้เอง)
+const OPEN_H = 10, CLOSE_H = 22; // ชั่วโมงเปิด–ปิดร้าน (แถบกราฟ 10:00–21:59 · กดนอกช่วงจะเพิ่มแถบให้เอง)
+const NAME = { in:'ลูกค้าเข้าร้าน', talk:'ได้พูดคุย', buy:'ซื้อสินค้า' };
 
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,'0');
 const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const hm = d => pad(d.getHours())+':'+pad(d.getMinutes());
-const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmt = n => Number(n||0).toLocaleString('th-TH');
 const store = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today = () => ymd(new Date());
@@ -184,83 +172,87 @@ const saveSettings = () => { const all = store.get('hcl_settings',{}); store.set
 let lockedBranch = false;
 let hubState = '';       // '' | 'ok' | 'auth' | 'error'
 let remote = [];          // รายการของสาขาวันนี้จาก Hub (ทุกเครื่อง)
-let devices = null, served = null;   // ขายเครื่องวันนี้ (ST Report) · ลูกค้าที่ช่วย (Service Case)
 const weekAgo = ymd(new Date(Date.now()-7*864e5));
 let pending = store.get('ft_pending', []).filter(e=>e.date>=weekAgo);   // กดในเครื่องนี้แต่ยังไม่ได้ส่ง
 let deletes = store.get('ft_deletes', []);
-const persist = () => { store.set('ft_pending',pending); store.set('ft_deletes',deletes); };
-let showAll = false;
+let history = store.get('ft_hist_'+today(), []);   // id ที่กด "เข้าร้าน" ในเครื่องนี้วันนี้ (ปุ่มย้อนกลับ)
+const persist = () => { store.set('ft_pending',pending); store.set('ft_deletes',deletes.slice(-500)); store.set('ft_hist_'+today(),history.slice(-50)); };
 
 function entries(){
   const del = new Set(deletes), seen = new Set(), out = [];
   remote.concat(pending.map(e=>Object.assign({pending:true},e))).forEach(e=>{
-    if(e.branch!==settings.branch || e.date!==today() || del.has(e.id) || seen.has(e.id)) return;
+    if(e.branch!==settings.branch || e.date!==today() || del.has(e.id) || seen.has(e.id) || !NAME[e.kind]) return;
     seen.add(e.id); out.push(e);
   });
   return out.sort((a,b)=>(a.ts||a.time)<(b.ts||b.time)?-1:1);
 }
-const sumOf = (list,k) => list.filter(e=>e.kind===k).reduce((s,e)=>s+(Number(e.qty)||1),0);
 
 function render(){
   $('demo').hidden = hubState!=='auth';
   if(hubState==='auth') $('demo').innerHTML = 'ยังไม่ได้เชื่อมบัญชีกับระบบ — <a href="'+RELOGIN+'">แตะเพื่อเข้าสู่ระบบอีกครั้ง</a> (ยอดที่กดไว้อยู่ในเครื่อง ไม่หาย)';
   $('gate').hidden = !!settings.branch;
   $('app').hidden = !settings.branch;
-  if(!settings.branch) return;
-  $('brName').textContent = settings.branch;
+  if(!settings.branch){ $('sync').textContent = ''; return; }
+  $('br').textContent = settings.branch;
   $('swb').hidden = lockedBranch;
-  $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const staff = window.hubTeamFor ? window.hubTeamFor(settings.branch) : [];
-  $('staff').innerHTML = '<option value="">ไม่ระบุ</option>'+staff.map(s=>'<option'+(s===settings.staff?' selected':'')+'>'+esc(s)+'</option>').join('');
+  $('today').textContent = new Date().toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
 
-  const list = entries(), nIn = sumOf(list,'in'), nPass = sumOf(list,'pass');
-  $('nIn').innerHTML = fmt(nIn)+'<small>คน</small>'; $('nPass').innerHTML = fmt(nPass)+'<small>คน</small>';
-  document.querySelector('[data-undo="in"]').disabled = !nIn; document.querySelector('[data-undo="pass"]').disabled = !nPass;
+  const list = entries(), c = {}, tot = {in:0,talk:0,buy:0};
+  list.forEach(e=>{ const h = Number((e.time||'').slice(0,2)), q = Number(e.qty)||1;
+    tot[e.kind] += q; if(!isNaN(h)){ const x = c[h] || (c[h] = {in:0,talk:0,buy:0}); x[e.kind] += q; } });
+  $('nIn').textContent = tot.in; $('nTalk').textContent = tot.talk; $('nBuy').textContent = tot.buy;
+  document.querySelector('[data-minus="talk"]').disabled = !tot.talk;
+  document.querySelector('[data-minus="buy"]').disabled = !tot.buy;
+  const live = new Set(list.map(e=>e.id));
+  $('undo').disabled = !history.some(id=>live.has(id));   // ยอดจาก Hub ยังไม่มา = ยังย้อนรายการที่ส่งแล้วไม่ได้
+  const pct = (a,b) => b ? Math.round(a/b*100)+'%' : '–';
+  $('kConv').textContent = pct(tot.buy, tot.in); $('kTalk').textContent = pct(tot.talk, tot.in);
 
-  // สรุป: อัตราเข้าร้าน = เข้า / (เข้า + ผ่าน) · อัตราซื้อ = ขายเครื่อง (ST Report) / คนเข้าร้าน
-  const cap = nIn+nPass ? Math.round(nIn/(nIn+nPass)*100) : null;
-  const conv = nIn && devices!=null ? Math.round(devices/nIn*100) : null;
-  $('kpis').innerHTML =
-    '<div class="kpi"><span>คนทั้งหมดที่หน้าร้าน</span><b>'+fmt(nIn+nPass)+'<small>คน</small></b><i>เข้าร้าน + เดินผ่าน</i></div>'+
-    '<div class="kpi"><span>อัตราเข้าร้าน</span><b>'+(cap==null?'–':cap)+'<small>'+(cap==null?'':'%')+'</small></b><i>เข้าร้าน ÷ คนทั้งหมด</i></div>'+
-    '<div class="kpi"><span>ขายเครื่องวันนี้</span><b>'+(devices==null?'–':fmt(devices))+'<small>เครื่อง</small></b><i>จาก ST Report</i></div>'+
-    '<div class="kpi"><span>อัตราซื้อ</span><b>'+(conv==null?'–':conv)+'<small>'+(conv==null?'':'%')+'</small></b><i>ขายเครื่อง ÷ คนเข้าร้าน'+(served?' · ช่วยลูกค้า '+fmt(served)+' คน (Service Case)':'')+'</i></div>';
-  const last = list[list.length-1];
-  $('sumInfo').textContent = last ? 'กดล่าสุด '+last.time+' น.' : '';
-
-  // รายชั่วโมง
-  const by = {}; list.forEach(e=>{ const h=(e.time||'').slice(0,2); if(!h) return; const x=by[h]||(by[h]={in:0,pass:0}); x[e.kind]+=(Number(e.qty)||1); });
-  const hours = HOURS.slice(); Object.keys(by).forEach(h=>{ if(!hours.includes(h)) hours.push(h); }); hours.sort();
-  const max = Math.max(1, ...hours.map(h=>by[h] ? by[h].in+by[h].pass : 0)), nowH = pad(new Date().getHours());
-  $('hours').innerHTML = hours.map(h=>{ const x = by[h]||{in:0,pass:0}, t = x.in+x.pass;
-    return '<div class="c'+(h===nowH?' now':'')+'" title="'+h+':00 – เข้าร้าน '+x.in+' · ผ่าน '+x.pass+'"><span class="v">'+(x.in||'')+'</span>'+
-      '<div class="st" style="height:calc((100% - 36px) * '+(t/max).toFixed(3)+')"><i class="in" style="height:'+(t?x.in/t*100:0)+'%"></i><i class="pass" style="height:'+(t?x.pass/t*100:0)+'%"></i></div><small>'+Number(h)+'</small></div>'; }).join('');
-
-  // รายการล่าสุด
-  const rows = list.slice().reverse(), shown = showAll ? rows : rows.slice(0, 15);
-  $('listInfo').textContent = list.length ? fmt(list.length)+' ครั้ง' : '';
-  $('list').innerHTML = rows.length ? shown.map(e=>'<div class="row'+(e.pending?' pending':'')+'"><time>'+esc(e.time)+'</time><div class="t"><span class="dot" style="background:'+(e.kind==='in'?'var(--red)':'#9DB8F5')+'"></span>'+esc(KIND[e.kind]||e.kind)+((Number(e.qty)||1)>1?' ×'+e.qty:'')+'<small>'+esc(e.staff||'ไม่ระบุผู้นับ')+'</small></div>'+
-      '<button type="button" class="del" data-del="'+esc(e.id)+'" aria-label="ลบ">×</button></div>').join('')+
-      (rows.length>shown.length ? '<button type="button" class="more" data-more="1">ดูทั้งหมด ('+fmt(rows.length)+')</button>' : '')
-    : '<div class="empty">ยังไม่มีการนับวันนี้ แตะ +1 ด้านบนเมื่อมีคนเดินเข้าร้านหรือเดินผ่าน</div>';
+  const hours = []; for(let h=OPEN_H; h<CLOSE_H; h++) hours.push(h);
+  Object.keys(c).map(Number).forEach(h=>{ if(!hours.includes(h) && c[h].in) hours.push(h); }); hours.sort((a,b)=>a-b);
+  const at = h => c[h] || {in:0,talk:0,buy:0};
+  const max = Math.max(1, ...hours.map(h=>at(h).in));
+  let peak = -1; hours.forEach(h=>{ if(at(h).in>0 && (peak<0 || at(h).in>at(peak).in)) peak=h; });
+  const nowH = new Date().getHours();
+  $('kPeak').textContent = peak<0 ? '–' : pad(peak)+':00';
+  $('kPeakN').textContent = peak<0 ? ' ' : at(peak).in+' คน';
+  $('bars').style.setProperty('--cols', hours.length);
+  $('bars').innerHTML = hours.map(h=>{
+    const v=at(h).in, b=Math.min(at(h).buy, v);
+    return '<div class="bar'+(h===nowH?' now':'')+(h===peak?' peak':'')+'" title="'+pad(h)+':00 – เข้าร้าน '+v+' · คุย '+at(h).talk+' · ซื้อ '+at(h).buy+'"><em>'+(v||'')+'</em>'+
+      '<i style="height:'+Math.round(v/max*70)+'%"><b style="height:'+(v?Math.round(b/v*100):0)+'%"></b></i><span>'+h+'</span></div>';
+  }).join('');
+  $('hrInfo').textContent = nowH>=OPEN_H && nowH<CLOSE_H ? 'ชั่วโมงนี้ '+at(nowH).in+' คน' : '';
+  const w = pending.length + deletes.length;
+  $('sync').textContent = hubState==='auth' ? '' : w ? 'รอส่ง '+w+' รายการ' : hubState==='ok' ? 'บันทึกแล้ว' : '';
+  $('sync').classList.toggle('wait', !!w);
 }
 
-function add(kind){
-  const now = new Date();
-  pending.push({id:uid(), ts:now.toISOString(), date:ymd(now), time:hm(now), branch:settings.branch, kind, qty:1, staff:settings.staff||''});
+function add(kind, n){
+  const now = new Date(), e = {id:uid(), ts:now.toISOString(), date:ymd(now), time:hm(now), branch:settings.branch, kind, qty:n, staff:settings.staff||''};
+  pending.push(e);
+  if(kind==='in') history.push(e.id);
   persist(); render();
-  const el = $(kind==='in'?'tapIn':'tapPass'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
-  if(navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
+  try{ navigator.vibrate && navigator.vibrate(12); }catch(err){}
   clearTimeout(add.t); add.t = setTimeout(sync, 1500);   // ส่งเป็นชุด ไม่ต้องยิงทุกครั้งที่แตะ
 }
 function del(id){
   const i = pending.findIndex(e=>e.id===id);
   if(i>=0) pending.splice(i,1); else if(!deletes.includes(id)) deletes.push(id);
-  persist(); render(); sync();
+  history = history.filter(x=>x!==id);
+  persist(); render();
+  try{ navigator.vibrate && navigator.vibrate([8,40,8]); }catch(err){}
+  clearTimeout(add.t); add.t = setTimeout(sync, 1500);
 }
-function undo(kind){
-  const mine = entries().filter(e=>e.kind===kind), last = mine[mine.length-1];
-  if(last){ del(last.id); toast('ลบ 1 ครั้งล่าสุด ('+KIND[kind]+' '+last.time+')'); }
+// − ของ "ได้พูดคุย" / "ซื้อสินค้า": ลบครั้งล่าสุดของสาขา · "ย้อนกลับ": ลบ "เข้าร้าน" ครั้งล่าสุดที่กดในเครื่องนี้
+function minus(kind){
+  const list = entries().filter(e=>e.kind===kind), last = list[list.length-1];
+  if(last) del(last.id);
+}
+function undo(){
+  const list = entries(), id = history.slice().reverse().find(x=>list.some(e=>e.id===x)); if(!id) return;
+  const e = list.find(x=>x.id===id); del(id);
+  toast('ย้อนกลับ −'+((e && Number(e.qty)) || 1)+' คน');
 }
 
 function load(){
@@ -270,7 +262,7 @@ function load(){
     .then(r=>r.json().catch(()=>null).then(d=>({s:r.status, d})))
     .then(({s,d})=>{
       if(branch!==settings.branch) return;
-      if(d && d.ok){ hubState='ok'; remote=(d.entries||[]).map(e=>Object.assign(e,{date:day})); devices=d.devices; served=d.served; sync(); }
+      if(d && d.ok){ hubState='ok'; remote=(d.entries||[]).map(e=>Object.assign(e,{date:day})); sync(); }
       else hubState = (s===401||s===403) ? 'auth' : 'error';
       render();
     }).catch(()=>{ hubState='error'; render(); });
@@ -295,17 +287,17 @@ async function sync(){
   syncing = false;
   if((pending.length || deletes.length) && hubState!=='auth'){ clearTimeout(add.t); add.t = setTimeout(sync, 5000); }
 }
+let tt; function toast(m){ const el=$('toast'); el.textContent=m; el.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('on'),1800); }
 
-let tt; function toast(m){ const el=$('toast'); el.textContent=m; el.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('on'),2200); }
-
-document.addEventListener('click', e=>{
-  const t = e.target.closest('button'); if(!t) return;
-  if(t.dataset.add) add(t.dataset.add);
-  else if(t.dataset.undo) undo(t.dataset.undo);
-  else if(t.dataset.del) del(t.dataset.del);
-  else if(t.dataset.more){ showAll = true; render(); }
+/* ===== ปุ่ม ===== */
+$('tap').addEventListener('click',()=>{ add('in',1); const t=$('tap'); t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop'); });
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.add){ add('in', Number(b.dataset.add)); toast('+'+b.dataset.add+' คน'); }
+  else if(b.dataset.plus) add(b.dataset.plus, 1);
+  else if(b.dataset.minus) minus(b.dataset.minus);
 });
-$('staff').onchange = e=>{ settings.staff=e.target.value; saveSettings(); };
+$('undo').addEventListener('click', undo);
 $('swb').onclick = ()=>{ if(window.HUB_SWITCH) HUB_SWITCH(); else location.href='/?switch=branch&next=/foot-traffic'; };
 
 // สาขาของเครื่องนี้: บัญชีสาขาล็อกตามอีเมล · เจ้าของระบบ / HOHW ใช้สาขาที่เลือกตอนเข้าสู่ระบบ

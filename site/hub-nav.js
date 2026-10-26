@@ -46,7 +46,7 @@
     { icon: 'checklist', name: 'Morning Store Checklist', desc: 'ตรวจความพร้อมก่อนเปิดร้าน ทำทุกเช้า', url: '/checklist' },
     { icon: 'tool', name: 'Service Case', desc: 'บันทึกเคสที่ช่วยลูกค้า ทั้งสำเร็จและไม่สำเร็จ', url: '/case-log' },
     { icon: 'file', name: 'ST Report', desc: 'กด + ทุกครั้งที่ขายได้ ส่งรายงานรอบ 15:00 และปิดร้าน', url: '/st-report' },
-    { icon: 'users', name: 'Foot Traffic', desc: 'นับคนเดินเข้าร้าน / เดินผ่านหน้าร้าน กด +1 ทุกครั้ง ดูยอดรายชั่วโมง', url: '/foot-traffic' },
+    { icon: 'users', name: 'Foot Traffic', desc: 'แตะทุกครั้งที่มีลูกค้าเข้าร้าน + ได้พูดคุย / ซื้อสินค้า ดูยอดรายชั่วโมง', url: '/foot-traffic' },
     { icon: 'chart', name: 'Checklist Report Dashboard', desc: 'สรุปคะแนน Checklist ทุกสาขา (เฉพาะผู้มีสิทธิ์)', url: '/report-dashboard' },
   ];
   var apps = get('hub_apps', null) || DEFAULT_APPS;
@@ -144,7 +144,7 @@
     if (admin) {
       list.push({ icon: 'tool', name: 'Service Case', desc: 'เคสที่ช่วยลูกค้า สำเร็จ / ไม่สำเร็จ เรื่องที่เจอบ่อย แยกสาขา', url: '/records?view=case' });
       list.push({ icon: 'receipt', name: 'ST Report', desc: 'ยอดขายแต่ละหมวด รุ่นขายดี รอบที่ส่งรายงาน แยกสาขา', url: '/records?view=st' });
-      list.push({ icon: 'users', name: 'Foot Traffic', desc: 'คนเดินเข้าร้าน / เดินผ่าน รายชั่วโมง อัตราเข้าร้าน อัตราซื้อ แยกสาขา', url: '/records?view=foot' });
+      list.push({ icon: 'users', name: 'Foot Traffic', desc: 'ลูกค้าเข้าร้าน รายชั่วโมง อัตราปิดการขาย อัตราพูดคุย แยกสาขา', url: '/records?view=foot' });
     }
     // other report apps added on ⚙️ (moment "รายงาน") show up here too
     apps.forEach(function (a) { if (isReport(a) && a.url !== '/report-dashboard' && a.url !== '/records' && canSee(u, a)) list.push(a); });

@@ -62,7 +62,7 @@ const ST_REPORT_APP: Omit<App, "id"> = { icon: "file", name: "ST Report", desc: 
 // hidden, on nobody's menu; owners still see it (marked) and can open it. Turn it on at ⚙️ > แอปในพอร์ทัล.
 const EMAIL_TPL_APP: Omit<App, "id"> = { icon: "megaphone", name: "แบบร่างอีเมล B2B", desc: "อีเมลแนะนำร้านถึงหน่วยงานและองค์กรใกล้สาขา เติมข้อมูลแล้วเปิดใน Gmail", url: "/email-templates", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: false }
 // Foot Traffic (Antt, 26 Oct 2026: "เพิ่มเมนู การนับ foot traffic ที่หน้าสาขา") — tap +1 per person walking in / past.
-const FOOT_APP: Omit<App, "id"> = { icon: "users", name: "Foot Traffic", desc: "นับคนเดินเข้าร้าน / เดินผ่านหน้าร้าน กด +1 ทุกครั้ง ดูยอดรายชั่วโมง", url: "/foot-traffic", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
+const FOOT_APP: Omit<App, "id"> = { icon: "users", name: "Foot Traffic", desc: "แตะทุกครั้งที่มีลูกค้าเข้าร้าน + ได้พูดคุย / ซื้อสินค้า ดูยอดรายชั่วโมง", url: "/foot-traffic", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
 // = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
 const SEED_LOGINS: [string, string][] = [
   ["benyapakamonphan@gmail.com", "เจ้าของระบบ"], ["marketing.uficon@gmail.com", ""], ["th.verapat@gmail.com", "วีรภัทร (หนึ่ง) · HOHW"],
@@ -208,6 +208,12 @@ async function migrateStReport() {
       console.log("[hub] added Foot Traffic to the menu (id " + id + ")")
     }
     await store.set("mig_foot_app", true)
+  }
+  // Once: Foot Traffic now counts customers in / talked to / bills (Antt's design) — refresh the old description.
+  if (!(await store.get("mig_foot_desc"))) {
+    const a = apps.find(x => x.url === FOOT_APP.url)
+    if (a && a.desc === "นับคนเดินเข้าร้าน / เดินผ่านหน้าร้าน กด +1 ทุกครั้ง ดูยอดรายชั่วโมง") { a.desc = FOOT_APP.desc; await store.set("apps", apps); console.log("[hub] Foot Traffic description updated") }
+    await store.set("mig_foot_desc", true)
   }
 }
 

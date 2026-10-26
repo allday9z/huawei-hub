@@ -124,10 +124,10 @@ tfoot td{font-weight:700}
     <div id="secFoot">
     <h2><span class="dot"></span>Foot Traffic</h2>
     <div class="kpis" id="ftKpi"></div>
-    <div class="card"><h3>แยกตามสาขา <small>อัตราเข้าร้าน = เข้าร้าน ÷ (เข้าร้าน + เดินผ่าน) · อัตราซื้อ = ขายเครื่อง (ST Report) ÷ คนเข้าร้าน</small></h3><div class="scroll"><table id="ftTable"></table></div></div>
+    <div class="card"><h3>แยกตามสาขา <small>ปิดการขาย = บิล ÷ ลูกค้าเข้าร้าน · ได้พูดคุย % = คุย ÷ ลูกค้าเข้าร้าน</small></h3><div class="scroll"><table id="ftTable"></table></div></div>
     <div class="grid2">
-      <div class="card"><h3>คนเข้าร้านรายชั่วโมง <small>รวมทุกวันในช่วงที่เลือก</small></h3><div class="days" id="ftHour"></div></div>
-      <div class="card"><h3>คนเข้าร้านรายวัน</h3><div class="days" id="ftDay"></div></div>
+      <div class="card"><h3>ลูกค้าเข้าร้านรายชั่วโมง <small>รวมทุกวันในช่วงที่เลือก</small></h3><div class="days" id="ftHour"></div></div>
+      <div class="card"><h3>ลูกค้าเข้าร้านรายวัน</h3><div class="days" id="ftDay"></div></div>
     </div>
     <p class="empty" style="margin:2px 4px 0;font-size:12.5px">เริ่มนับตั้งแต่ 26 ต.ค. 2026 (เมนู Foot Traffic)</p>
     </div>
@@ -223,22 +223,27 @@ function renderCheck(d, brs){
   daysChart($('ckDay'), d.from, d.to, day => k.byDay[day] || 0);
 }
 function renderFoot(d, brs){
-  const f = d.foot || { in:0, pass:0, byBranch:{}, byDay:{}, byHour:{}, devices:{} };
-  const pctOf = (a, b) => b ? Math.round(a/b*100) : null, show = v => v==null ? '–' : v+'%';
-  const dev = brs.reduce((a, b) => a + (f.byBranch[b] ? (f.devices[b]||0) : 0), 0), inB = brs.reduce((a, b) => a + ((f.byBranch[b]||{}).in||0), 0);
-  const cap = pctOf(f.in, f.in+f.pass), conv = pctOf(dev, inB);
+  // ลูกค้าเข้าร้าน / ได้พูดคุย / ซื้อ (บิล) ตามแบบหน้า Foot Traffic ของคุณ Antt · "เดินผ่าน" มาจากรุ่นแรก แสดงเฉพาะเมื่อมีข้อมูล
+  const f = d.foot || { in:0, talk:0, buy:0, pass:0, byBranch:{}, byDay:{}, byHour:{}, devices:{} };
+  const pctOf = (a, b) => b ? Math.round(a/b*100) : null, show = v => v==null ? '–' : v+'%', n = v => v||0;
+  const conv = pctOf(n(f.buy), n(f.in)), talk = pctOf(n(f.talk), n(f.in)), hasPass = n(f.pass) > 0;
+  const hs0 = Object.keys(f.byHour).filter(h => n((f.byHour[h]||{}).in) > 0);
+  const peak = hs0.reduce((a, h) => a==null || n(f.byHour[h].in) > n(f.byHour[a].in) ? h : a, null);
   $('ftKpi').innerHTML =
-    '<div class="kpi"><span>เดินเข้าร้าน</span><b>'+fmt(f.in)+'<small>คน</small></b></div>'+
-    '<div class="kpi"><span>เดินผ่านหน้าร้าน</span><b>'+fmt(f.pass)+'<small>คน</small></b></div>'+
-    '<div class="kpi"><span>อัตราเข้าร้าน</span><b>'+(cap==null?'–':cap)+'<small>'+(cap==null?'':'%')+'</small></b></div>'+
-    '<div class="kpi"><span>อัตราซื้อ</span><b>'+(conv==null?'–':conv)+'<small>'+(conv==null?'':'%')+'</small></b></div>';
-  $('ftTable').innerHTML = '<thead><tr><th>สาขา</th><th>วันที่นับ</th><th>เดินเข้าร้าน</th><th>เดินผ่าน</th><th>อัตราเข้าร้าน</th><th>ขายเครื่อง</th><th>อัตราซื้อ</th></tr></thead><tbody>'+
-    brs.map(b => { const x = f.byBranch[b]; if(!x) return '<tr><td>'+b+'</td><td class="st-no">0</td><td class="st-no">–</td><td></td><td></td><td></td><td></td></tr>';
-      const dv = f.devices[b]||0; return '<tr><td>'+b+'</td><td>'+fmt(x.days)+' วัน</td><td>'+fmt(x.in)+'</td><td>'+fmt(x.pass)+'</td><td>'+show(pctOf(x.in, x.in+x.pass))+'</td><td>'+fmt(dv)+'</td><td>'+show(pctOf(dv, x.in))+'</td></tr>'; }).join('')+
-    '</tbody>'+(brs.length>1 ? '<tfoot><tr><td>รวม</td><td></td><td>'+fmt(f.in)+'</td><td>'+fmt(f.pass)+'</td><td>'+show(cap)+'</td><td>'+fmt(dev)+'</td><td>'+show(conv)+'</td></tr></tfoot>' : '');
+    '<div class="kpi"><span>ลูกค้าเข้าร้าน</span><b>'+fmt(n(f.in))+'<small>คน</small></b></div>'+
+    '<div class="kpi"><span>ปิดการขาย ('+fmt(n(f.buy))+' บิล)</span><b>'+(conv==null?'–':conv)+'<small>'+(conv==null?'':'%')+'</small></b></div>'+
+    '<div class="kpi"><span>ได้พูดคุย</span><b>'+(talk==null?'–':talk)+'<small>'+(talk==null?'':'%')+'</small></b></div>'+
+    '<div class="kpi"><span>ช่วงที่คนเยอะสุด</span><b>'+(peak==null?'–':peak+':00')+'<small>'+(peak==null?'':fmt(f.byHour[peak].in)+' คน')+'</small></b></div>';
+  const cols = '<th>สาขา</th><th>วันที่นับ</th><th>เข้าร้าน</th><th>ได้พูดคุย</th><th>ซื้อ (บิล)</th><th>ปิดการขาย</th><th>ได้พูดคุย %</th><th>ขายเครื่อง (ST)</th>'+(hasPass?'<th>เดินผ่าน</th>':'');
+  const cells = (x, dv) => '<td>'+fmt(n(x.in))+'</td><td>'+fmt(n(x.talk))+'</td><td>'+fmt(n(x.buy))+'</td><td>'+show(pctOf(n(x.buy), n(x.in)))+'</td><td>'+show(pctOf(n(x.talk), n(x.in)))+'</td><td>'+fmt(dv)+'</td>'+(hasPass?'<td>'+fmt(n(x.pass))+'</td>':'');
+  const dev = brs.reduce((a, b) => a + (f.byBranch[b] ? (f.devices[b]||0) : 0), 0);
+  $('ftTable').innerHTML = '<thead><tr>'+cols+'</tr></thead><tbody>'+
+    brs.map(b => { const x = f.byBranch[b]; if(!x) return '<tr><td>'+b+'</td><td class="st-no">0</td><td class="st-no">–</td>'+'<td></td>'.repeat(hasPass?6:5)+'</tr>';
+      return '<tr><td>'+b+'</td><td>'+fmt(x.days)+' วัน</td>'+cells(x, f.devices[b]||0)+'</tr>'; }).join('')+
+    '</tbody>'+(brs.length>1 ? '<tfoot><tr><td>รวม</td><td></td>'+cells(f, dev)+'</tr></tfoot>' : '');
   const hs = Object.keys(f.byHour).concat(['10','11','12','13','14','15','16','17','18','19','20','21']).filter((h, i, a) => a.indexOf(h) === i).sort();
-  const hmax = Math.max(1, ...hs.map(h => (f.byHour[h]||{}).in||0));
-  $('ftHour').innerHTML = f.in ? hs.map(h => { const v = (f.byHour[h]||{}).in||0; return '<div class="d" title="'+h+':00 – '+v+' คน"><i style="height:'+(v/hmax*100)+'%"></i><small>'+Number(h)+'</small></div>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';
+  const hmax = Math.max(1, ...hs.map(h => n((f.byHour[h]||{}).in)));
+  $('ftHour').innerHTML = n(f.in) ? hs.map(h => { const x = f.byHour[h]||{}, v = n(x.in); return '<div class="d" title="'+h+':00 – เข้าร้าน '+v+' · ซื้อ '+n(x.buy)+' บิล"><i style="height:'+(v/hmax*100)+'%"></i><small>'+Number(h)+'</small></div>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';
   daysChart($('ftDay'), d.from, d.to, k => f.byDay[k] || 0);
 }
 function render(d){
