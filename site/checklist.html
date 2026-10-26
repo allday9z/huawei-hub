@@ -153,6 +153,8 @@ function ico(n,s,c){var P={"store": "<path d=\"m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8
   .extra.show{display:block;}
   .extra input{font-size:17.5px;padding:8px 10px;font-weight:700;}
   .extra-label{font-size:15.5px;color:var(--muted);margin-bottom:3px;display:block;font-weight:800;}
+  .extra textarea.passdetail{font-size:17.5px;padding:10px 12px;font-weight:700;line-height:1.55;min-height:150px;max-height:60vh;resize:vertical;}
+  .extra-hint{display:block;font-size:13.5px;color:var(--muted);font-weight:600;margin:-2px 0 6px;}
 
   .cat-total{
     display:flex;justify-content:space-between;padding:10px 16px;background:#f8f9fa;
@@ -450,8 +452,9 @@ const CATEGORIES = [
 ];
 
 // Items that require an extra detail field when marked "ผ่าน" (pass), keyed by "c{categoryIndex}i{itemIndex}"
+// (Morning Brief is a multi-line box that grows with the text — staff type a lot here, Antt 26 Oct 2026)
 const PASS_DETAIL_ITEMS = {
-  "c3i1": { label: "บรีฟเรื่องอะไรบ้าง", placeholder: "เช่น โปรโมชั่นเดือนนี้ / Sales Tool ตัวใหม่ / ยอดขายเมื่อวาน" }
+  "c3i1": { label: "บรีฟเรื่องอะไรบ้าง", placeholder: "เช่น\n- โปรโมชั่นเดือนนี้ …\n- Sales Tool ตัวใหม่ …\n- ยอดขายเมื่อวาน / เป้าวันนี้ …" }
 };
 
 const CAT_ICONS = ["store","package","tag","user-check"]; // Lucide icon names
@@ -540,7 +543,8 @@ CATEGORIES.forEach((cat, ci)=>{
       </div>
       ${passReq ? `<div class="extra pass-extra" id="${id}-extra-pass">
         <span class="extra-label">${passReq.label} <span style="color:#d9362f;">*</span></span>
-        <input type="text" id="${id}-passdetail" placeholder="${passReq.placeholder}" oninput="calc()">
+        <span class="extra-hint">พิมพ์ได้หลายบรรทัด กด Enter เพื่อขึ้นบรรทัดใหม่ ช่องจะขยายตามข้อความ</span>
+        <textarea id="${id}-passdetail" class="passdetail" rows="5" placeholder="${passReq.placeholder}" oninput="calc()"></textarea>
       </div>` : ''}`;
     body.appendChild(div);
   });
@@ -582,11 +586,18 @@ function onChange(id){
   else { extra.classList.remove('show'); }
   const extraPass = document.getElementById(id+'-extra-pass');
   if(extraPass){
-    if(checked && checked.value === 'pass'){ extraPass.classList.add('show'); }
+    if(checked && checked.value === 'pass'){ extraPass.classList.add('show'); growBox(document.getElementById(id+'-passdetail')); }
     else { extraPass.classList.remove('show'); }
   }
   calc();
 }
+// The Morning Brief box grows with what is typed (up to 60% of the screen, then it scrolls)
+function growBox(el){
+  if(!el || !el.offsetParent) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight + 2, window.innerHeight * 0.6) + 'px';
+}
+document.addEventListener('input', e => { if(e.target.matches && e.target.matches('textarea.passdetail')) growBox(e.target); });
 
 const TOTAL_MAX = CATEGORIES.reduce((s,c)=>s+c.max, 0); // 25 since Oct 2026 (was 20)
 document.querySelectorAll('.js-total-max').forEach(el => el.textContent = TOTAL_MAX);
@@ -655,7 +666,7 @@ function buildSummaryText(){
       }
       if(checked && checked.value==='pass' && PASS_DETAIL_ITEMS[id]){
         const detail = document.getElementById(id+'-passdetail').value;
-        line += `\n    ${PASS_DETAIL_ITEMS[id].label}: ${detail || '(ยังไม่ได้กรอก)'}`;
+        line += `\n    ${PASS_DETAIL_ITEMS[id].label}: ${!detail.trim() ? '(ยังไม่ได้กรอก)' : detail.includes('\n') ? '\n      ' + detail.trim().replace(/\n+/g, '\n      ') : detail.trim()}`;
       }
       lines.push(line);
     });
@@ -844,7 +855,7 @@ function saveDraft(){
   try{
     const data = {inspector: inspectorName(), note: document.getElementById('general-note').value, answers:{}};
     document.querySelectorAll('input[type=radio]:checked').forEach(r=>{ data.answers[r.name] = r.value; });
-    document.querySelectorAll('input[id$="-reason"], input[id$="-fix"], input[id$="-passdetail"]').forEach(n=>{ if(n.value) data.answers[n.id]=n.value; });
+    document.querySelectorAll('input[id$="-reason"], input[id$="-fix"], textarea[id$="-passdetail"]').forEach(n=>{ if(n.value) data.answers[n.id]=n.value; });
     localStorage.setItem(draftKey(), JSON.stringify(data));
   }catch(e){}
 }
@@ -863,6 +874,7 @@ function loadDraft(){
         if(el){ el.checked = true; onChange(k); }
       }
     });
+    document.querySelectorAll('textarea.passdetail').forEach(growBox);
   }catch(e){}
 }
 
@@ -908,7 +920,7 @@ function addRewrite(el, field, itemText){
   });
   el.addEventListener('input', e=>{ if(e.isTrusted){ original = null; undo.hidden = true; } });
 }
-document.querySelectorAll('input[id$="-reason"], input[id$="-fix"], input[id$="-passdetail"]').forEach(el=>{
+document.querySelectorAll('input[id$="-reason"], input[id$="-fix"], textarea[id$="-passdetail"]').forEach(el=>{
   const field = el.id.slice(el.id.lastIndexOf('-') + 1);
   const itemEl = el.closest('.item')?.querySelector('.item-text');
   const itemText = itemEl ? itemEl.textContent.replace(/^\d+/, '').trim() : '';
@@ -918,6 +930,7 @@ addRewrite(document.getElementById('general-note'), 'note', '');
 
 loadDraft();
 calc();
+document.querySelectorAll('textarea.passdetail').forEach(growBox);
 </script>
 <script src="/hub-nav.js"></script>
 </body>

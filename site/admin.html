@@ -111,6 +111,16 @@ label.l{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap
   .grid3 label:last-child{grid-column:1/-1}
 }
 .note{font-size:13px;color:var(--muted);background:var(--chip);border-radius:10px;padding:9px 12px;margin-bottom:12px}
+/* การใช้งาน (activity) */
+.actf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.act>li{align-items:flex-start}
+.act .t{flex:none;width:46px;font-weight:700;font-variant-numeric:tabular-nums}
+.act .sub{word-break:break-word}
+.dayh{font-size:13px;font-weight:700;color:var(--muted);margin:14px 0 2px}
+.dayh:first-child{margin-top:0}
+.who{cursor:pointer}
+.who:hover .name{text-decoration:underline}
+@media (max-width:560px){ .actf{grid-template-columns:1fr 1fr} }
 </style>
 </head>
 <body>
@@ -181,7 +191,7 @@ $('logoGate').src = $('logoTop').src;
 
 let token = null;
 let D = null;            // ข้อมูลจากเซิร์ฟเวอร์
-let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','logins','log'].includes(tab)) tab='apps';
+let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','logins','act','log'].includes(tab)) tab='apps';
 let editApp = null;
 let staffFilter = 'ALL', editStaff = null, editLogin = null;
 
@@ -250,7 +260,7 @@ function signOut(){
   showGate('ออกจากระบบแล้ว');
 }
 $('out').onclick=()=>signOut();
-$('reload').onclick=async()=>{ await load(); toast('โหลดข้อมูลล่าสุดแล้ว'); };
+$('reload').onclick=async()=>{ await load(); if(tab==='act') await loadAct(); toast('โหลดข้อมูลล่าสุดแล้ว'); };
 
 /* ===== Render ===== */
 const BR = () => D.branches.map(b=>b.code);
@@ -258,9 +268,9 @@ const brList = s => String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
 
 function render(){
   $('meEmail').textContent = D.me; $('meRole').textContent = 'เจ้าของระบบ';
-  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','สิทธิ์อีเมล',D.logins.filter(l=>l.active).length],['log','ประวัติ','']];
+  const T = [['apps','แอปในพอร์ทัล',D.apps.filter(a=>a.active).length],['staff','พนักงาน',D.staff.filter(s=>s.active).length],['logins','สิทธิ์อีเมล',D.logins.filter(l=>l.active).length],['act','การใช้งาน',''],['log','ประวัติการตั้งค่า','']];
   $('tabs').innerHTML = T.map(([k,l,n])=>'<button class="tab'+(tab===k?' on':'')+'" data-tab="'+k+'">'+l+(n!==''?'<span>'+n+'</span>':'')+'</button>').join('');
-  $('view').innerHTML = tab==='apps'?viewApps():tab==='logins'?viewLogins():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
+  $('view').innerHTML = tab==='apps'?viewApps():tab==='logins'?viewLogins():tab==='act'?viewAct():tab==='staff'?'<p class="note">รายชื่อนี้ใช้ในช่อง "ผู้ตรวจสอบ" (Checklist) และ "ผู้บันทึก" (Service Case) ทันทีหลังบันทึก · แต่ละสาขาเห็นพนักงานของสาขาตัวเอง + คนที่ตั้งเป็น "ทุกสาขา" · คนลาออกกด "ปิดการใช้งาน" ได้โดยไม่ต้องลบ</p>'+viewStaff():viewLog();
 }
 
 function staffEditor(s){
@@ -332,6 +342,90 @@ function viewApps(){
     ).join('')+'</ul></section>';
 }
 
+/* ===== การใช้งาน: แต่ละอีเมลทำรายการอะไร สาขาไหน กี่โมง (Antt, 26 ต.ค. 2569) ===== */
+const bkDay = (ms) => new Date(ms + 7*3600e3).toISOString().slice(0,10);
+const bkHM = iso => new Date(new Date(iso).getTime() + 7*3600e3).toISOString().slice(11,16);
+const thDay = d => new Date(d+'T12:00:00+07:00').toLocaleDateString('th-TH',{timeZone:'Asia/Bangkok',weekday:'long',day:'numeric',month:'short',year:'numeric'});
+const ACT_APPS = [['all','ทั้งหมด'],['checklist','Morning Checklist'],['case','Service Case'],['st','ST Report'],['seen','เข้าใช้งาน']];
+let actQ = {from:bkDay(Date.now()), to:bkDay(Date.now())}, actD = null, actBusy = false, actApp = 'all', actBr = '', actEm = '', actShow = 300;
+async function loadAct(){
+  actBusy = true; if(tab==='act') render();
+  try{
+    const r = await api('/api/admin/activity?from='+actQ.from+'&to='+actQ.to);
+    if(r.ok) actD = r; else if(!handleErr(r)) toast(r.error||'โหลดประวัติไม่สำเร็จ', true);
+  }catch(e){ toast('โหลดประวัติไม่สำเร็จ ลองใหม่อีกครั้ง', true); }
+  actBusy = false; actShow = 300; if(tab==='act') render();
+}
+function actNote(email){
+  const l = D.logins.find(x=>x.email.toLowerCase()===String(email).toLowerCase());
+  const p = actD && actD.people.find(x=>x.email===email);
+  return (l && l.note) || (p && p.note) || '';
+}
+function viewAct(){
+  if(!actD && !actBusy) setTimeout(loadAct);
+  const emails = [...new Set([...(actD?actD.people.map(p=>p.email):[]), ...D.logins.filter(l=>l.active).map(l=>l.email)])].sort();
+  let h = '<p class="note">ดูว่าแต่ละอีเมลทำรายการอะไร สาขาไหน กี่โมง ดึงจากข้อมูลที่บันทึกในระบบ: Morning Store Checklist (ที่ส่งตั้งแต่ 22 ต.ค. 69), Service Case, ST Report และเวลาที่เปิดหน้าแรกของ Hub (เริ่มเก็บ 26 ต.ค. 69) · เวลาเป็นเวลาที่ทำรายการบนเครื่อง</p>'+
+    '<section class="card"><div class="actf">'+
+      '<label class="l">ตั้งแต่วันที่<input class="f" type="date" id="acFrom" value="'+actQ.from+'"></label>'+
+      '<label class="l">ถึงวันที่<input class="f" type="date" id="acTo" value="'+actQ.to+'"></label>'+
+      '<label class="l">สาขา<select class="f" id="acBr"><option value="">ทุกสาขา</option>'+D.branches.map(b=>'<option value="'+b.code+'"'+(actBr===b.code?' selected':'')+'>'+b.code+' · '+esc(b.name)+'</option>').join('')+'</select></label>'+
+      '<label class="l">อีเมล<select class="f" id="acEm"><option value="">ทุกอีเมล</option>'+emails.map(e=>{ const n=actNote(e); return '<option value="'+esc(e)+'"'+(actEm===e?' selected':'')+'>'+esc(e)+(n?' · '+esc(n):'')+'</option>'; }).join('')+'</select></label>'+
+    '</div><div class="chips" style="margin-top:10px">'+
+      [['0','วันนี้'],['1','เมื่อวาน'],['7','7 วันล่าสุด'],['30','30 วันล่าสุด']].map(([k,l])=>'<button class="chip" data-acr="'+k+'">'+l+'</button>').join('')+
+    '</div><div class="chips" style="margin-top:8px">'+
+      ACT_APPS.map(([k,l])=>'<button class="chip'+(actApp===k?' on':'')+'" data-aca="'+k+'">'+l+'</button>').join('')+
+    '</div></section>';
+  if(!actD) return h + '<section class="card"><p class="hint">'+(actBusy?'กำลังโหลด…':'โหลดไม่สำเร็จ กด ↻ โหลดใหม่')+'</p></section>';
+  const rows = actD.rows.filter(r=>(actApp==='all'||r.app===actApp) && (!actBr||r.branch===actBr) && (!actEm||r.email===actEm));
+  const one = actQ.from===actQ.to;
+  // สรุปตามอีเมล
+  const by = {};
+  for(const r of rows){
+    const p = by[r.email] || (by[r.email] = {email:r.email, branches:new Set(), n:{checklist:0,case:0,st:0}, ck:[], seen:null, last:''});
+    if(r.branch) p.branches.add(r.branch);
+    if(r.app==='seen') p.seen = r; else p.n[r.app]++;
+    if(r.app==='checklist'){ p.ck.push(bkHM(r.at)+' น.'+(r.late?' (หลัง '+r.late+')':'')); if(r.late) p.late=true; }
+    if(r.at > p.last) p.last = r.at;
+  }
+  const ppl = Object.values(by).sort((a,b)=>b.last.localeCompare(a.last));
+  h += '<section class="card"><div class="bar" style="margin-bottom:4px"><b class="grow">สรุปตามอีเมล</b><span class="hint">'+ppl.length+' อีเมล · '+rows.length+' รายการ'+(actBusy?' · กำลังโหลด…':'')+'</span></div>';
+  h += ppl.length ? '<ul class="rows">'+ppl.map(p=>{
+    const n = actNote(p.email);
+    const tags = [];
+    if(p.n.checklist) tags.push('<span class="tagb '+(p.late?'red':'ok')+'">Checklist '+(one?'ส่ง '+p.ck.reverse().join(', '):p.n.checklist+' ครั้ง')+'</span>');
+    if(p.n.case) tags.push('<span class="tagb">Service Case '+p.n.case+'</span>');
+    if(p.n.st) tags.push('<span class="tagb">ST Report '+p.n.st+'</span>');
+    if(p.seen && one) tags.push('<span class="tagb">เข้าใช้งาน '+esc(p.seen.detail.replace(/^ครั้งแรก /,'').replace(/ · ล่าสุด /,'–').replace(/ · .*$/,''))+' น.</span>');
+    else if(p.seen) tags.push('<span class="tagb">เข้าใช้งาน</span>');
+    return '<li class="who" data-acem="'+esc(p.email)+'"><div class="main"><div class="name">'+esc(p.email)+'</div><div class="sub">'+(n?esc(n)+' · ':'')+([...p.branches].join(', ')||'ไม่ระบุสาขา')+'</div><div>'+tags.join('')+'</div></div></li>';
+  }).join('')+'</ul>' : '<p class="hint">ไม่มีรายการในช่วงนี้</p>';
+  h += '</section>';
+  // รายการตามเวลา (ล่าสุดก่อน)
+  h += '<section class="card"><b>รายการตามเวลา</b>';
+  if(!rows.length) h += '<p class="hint" style="margin-top:6px">ไม่มีรายการ</p>';
+  let day = '', list = '';
+  for(const r of rows.slice(0, actShow)){
+    const d = bkDay(new Date(r.at).getTime());
+    if(d!==day){ if(list) h += '<ul class="rows act">'+list+'</ul>'; list=''; day=d; h += '<div class="dayh">'+esc(thDay(d))+'</div>'; }
+    const n = actNote(r.email);
+    list += '<li><div class="t">'+bkHM(r.at)+'</div><div class="main"><div class="name">'+esc(r.action)+(r.branch?' <span class="tagb">'+esc(r.branch)+'</span>':'')+(r.late?' <span class="tagb red">หลัง '+esc(r.late)+'</span>':'')+'</div>'+
+      '<div class="sub">'+esc(r.email)+(n?' · '+esc(n):'')+'</div>'+(r.detail?'<div class="sub">'+esc(r.detail)+'</div>':'')+'</div></li>';
+  }
+  if(list) h += '<ul class="rows act">'+list+'</ul>';
+  if(rows.length > actShow) h += '<div class="acts" style="justify-content:center;margin-top:8px"><button class="btn sec" data-act="actMore">แสดงเพิ่ม (อีก '+(rows.length-actShow)+' รายการ)</button></div>';
+  return h + '</section>';
+}
+document.addEventListener('change', e=>{
+  const id = e.target.id;
+  if(id==='acFrom' || id==='acTo'){
+    const f=$('acFrom').value, t=$('acTo').value;
+    if(!f || !t) return;
+    actQ = {from: f<=t?f:t, to: f<=t?t:f}; loadAct();
+  }
+  if(id==='acBr'){ actBr = e.target.value; actShow = 300; render(); }
+  if(id==='acEm'){ actEm = e.target.value; actShow = 300; render(); }
+});
+
 function viewLog(){
   return '<section class="card"><ul class="rows log">'+(D.log.length?D.log.map(l=>'<li><div class="when">'+esc(l.at)+' · '+esc(l.by)+'</div><div><b>'+esc(l.op)+'</b>'+(l.detail?' — '+esc(l.detail):'')+'</div></li>').join(''):'<li class="hint">ยังไม่มีประวัติการแก้ไข</li>')+'</ul></section>';
 }
@@ -383,6 +477,9 @@ function viewLogins(){
 document.addEventListener('click', async e=>{
   const t = e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; store.set('hub_admin_tab',tab); editStaff=editApp=editLogin=null; return render(); }
   const sf = e.target.closest('[data-sf]'); if(sf){ staffFilter=sf.dataset.sf; return render(); }
+  const ar = e.target.closest('[data-acr]'); if(ar){ const k=+ar.dataset.acr, now=Date.now(); actQ = k===1 ? {from:bkDay(now-864e5), to:bkDay(now-864e5)} : {from:bkDay(now-Math.max(0,k-1)*864e5), to:bkDay(now)}; return loadAct(); }
+  const aa = e.target.closest('[data-aca]'); if(aa){ actApp=aa.dataset.aca; actShow=300; return render(); }
+  const ae = e.target.closest('[data-acem]'); if(ae){ actEm = actEm===ae.dataset.acem ? '' : ae.dataset.acem; actShow=300; render(); return window.scrollTo({top:0,behavior:'smooth'}); }
   const eb = e.target.closest('[data-esbr]');
   if(eb){
     readStaffEditor();
@@ -404,6 +501,7 @@ document.addEventListener('click', async e=>{
   const mo = e.target.closest('[data-mom]'); if(mo){ readAppEditor(); editApp.moment=mo.dataset.mom; return render(); }
   const a = e.target.closest('[data-act]'); if(!a) return;
   const act = a.dataset.act;
+  if(act==='actMore'){ actShow += 300; return render(); }
   if(act==='appNew'){ editApp={row:0,icon:'file',name:'',desc:'',url:'/',audience:'ทุกคน',moment:'ระหว่างวัน',active:true}; render(); $('eaName').focus(); }
   if(act==='appEdit'){ editApp={...D.apps.find(x=>x.row===+a.dataset.row)}; render(); }
   if(act==='appCancel'){ editApp=null; render(); }

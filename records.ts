@@ -10,13 +10,15 @@
 // Deleted ST entries are kept with deletedAt / deletedBy (audit) and left out of reads.
 // Who: the device session cookie (set by the portal after Google sign-in) + this email's menus on ⚙️.
 import ExcelJS from "exceljs"
-import { store, locked, json, sessionEmail, accountAccess, BRANCH_CODES, BRANCHES } from "./hub"
+import { store, locked, json, sessionEmail, accountAccess, loadAll, ownerOf, canonEmail, isOwnerEmail, lockedBranchFor, BRANCH_CODES, BRANCHES } from "./hub"
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const TIME = /^\d{2}:\d{2}$/
 const ID = /^[\w-]{1,80}$/
 const MAX_ITEMS = 200
 const clean = (v: unknown, max = 200) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max)
+// same, but keeps line breaks (multi-line boxes: Morning Brief, note)
+const cleanLines = (v: unknown, max = 200) => String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f]/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, max)
 const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
 const bkkToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
 const key = (app: "case" | "st" | "check", branch: string, day: string) => `rec:${app}:${branch}:${day}`
@@ -90,13 +92,13 @@ function cleanCheck(c: any, email: string) {
   for (const cat of (Array.isArray(c?.categories) ? c.categories : []).slice(0, 20))
     for (const it of (Array.isArray(cat?.items) ? cat.items : []).slice(0, 60)) {
       const status = it?.status === "pass" || it?.status === "fail" ? it.status : ""
-      items.push({ cat: clean(cat?.name, 120), text: clean(it?.text, 300), status, reason: clean(it?.reason, 500), fix: clean(it?.fix, 500), passDetail: clean(it?.passDetail, 500) })
+      items.push({ cat: clean(cat?.name, 120), text: clean(it?.text, 300), status, reason: clean(it?.reason, 500), fix: clean(it?.fix, 500), passDetail: cleanLines(it?.passDetail, 3000) })
     }
   if (!items.length) return null
   const pass = items.filter(i => i.status === "pass").length, fail = items.filter(i => i.status === "fail").length
   return {
     id: ID.test(String(c?.id)) ? String(c.id) : `${c.branch}-${Date.now()}`, branch: String(c.branch), date: String(c.date),
-    inspector: clean(c.inspector, 120), generalNote: clean(c.generalNote, 1000), items, pass, fail, total: items.length,
+    inspector: clean(c.inspector, 120), generalNote: cleanLines(c.generalNote, 1000), items, pass, fail, total: items.length,
     at: new Date().toISOString(), savedBy: email,
   }
 }
@@ -137,13 +139,14 @@ async function exportXlsx(url: URL): Promise<Response> {
     ws.columns = [
       { header: "วันที่", key: "date", width: 12 }, { header: "ส่งเวลา", key: "time", width: 8 }, { header: "สาขา", key: "branch", width: 10 }, { header: "ชื่อสาขา", key: "bname", width: 26 },
       { header: "ผู้ตรวจสอบ", key: "inspector", width: 26 }, { header: "ผ่าน", key: "pass", width: 7 }, { header: "ไม่ผ่าน", key: "fail", width: 8 }, { header: "ทั้งหมด", key: "total", width: 8 },
-      { header: "ข้อที่ไม่ผ่าน (สาเหตุ → แก้ไข)", key: "fails", width: 70 }, { header: "หมายเหตุ", key: "generalNote", width: 40 }, { header: "บันทึกด้วยบัญชี", key: "savedBy", width: 28 },
+      { header: "ข้อที่ไม่ผ่าน (สาเหตุ → แก้ไข)", key: "fails", width: 70 }, { header: "Morning Brief (บรีฟเรื่องอะไรบ้าง)", key: "brief", width: 60 }, { header: "หมายเหตุ", key: "generalNote", width: 40 }, { header: "บันทึกด้วยบัญชี", key: "savedBy", width: 28 },
     ]
     for (const { key: k, value } of await store.list("rec:check:")) {
       if (!inRange(k)) continue
       for (const c of (value?.submissions ?? []).slice().sort((a: any, b: any) => (a.at || "").localeCompare(b.at || ""))) {
         const fails = (c.items ?? []).filter((i: any) => i.status === "fail").map((i: any) => i.text + (i.reason ? ` (${i.reason}` + (i.fix ? ` → ${i.fix}` : "") + ")" : "")).join("\n")
-        const row = ws.addRow({ ...c, bname: branchName(c.branch), time: bkkTime(c.at), fails }); row.alignment = { wrapText: true, vertical: "top" }; count++
+        const brief = (c.items ?? []).filter((i: any) => i.status === "pass" && i.passDetail).map((i: any) => i.passDetail).join("\n")
+        const row = ws.addRow({ ...c, bname: branchName(c.branch), time: bkkTime(c.at), fails, brief }); row.alignment = { wrapText: true, vertical: "top" }; count++
       }
     }
     head(ws)
@@ -249,9 +252,80 @@ async function summary(url: URL) {
   })
 }
 
+/* ---------------- ⚙️ การใช้งาน: what each email did and when (Antt, 26 Oct 2026) ----------------
+   Built from the records themselves (every save keeps the account email + time), so it also covers the
+   days before this view existed — plus the first / last time each email opened the hub (act:seen:<day>).
+   Times: what the device recorded (ts / at) — a save made offline is shown at the time it was made. */
+const validIso = (v: unknown) => { const t = new Date(String(v ?? "")); return v && !isNaN(+t) ? t.toISOString() : "" }
+async function activity(url: URL): Promise<Response> {
+  const from = DAY.test(url.searchParams.get("from") ?? "") ? url.searchParams.get("from")! : bkkToday()
+  const to = DAY.test(url.searchParams.get("to") ?? "") ? url.searchParams.get("to")! : from
+  if (from > to || (Date.parse(to) - Date.parse(from)) / 864e5 > 62) return json({ ok: false, error: "ช่วงวันที่ไม่ถูกต้อง (ไม่เกิน 62 วัน)" }, 400)
+  const inRange = (k: string) => { const d = k.split(":")[3]; return d >= from && d <= to }
+  const { apps, logins } = await loadAll()
+  const due = apps.find(a => a.url === "/checklist")?.due ?? ""
+  const rows: { at: string; day: string; email: string; branch: string; app: string; action: string; detail: string; late?: string }[] = []
+  const add = (r: (typeof rows)[number]) => { if (r.at && r.email) rows.push(r) }
+
+  for (const { key: k, value } of await store.list("rec:check:")) {
+    if (!inRange(k)) continue
+    const [, , branch, day] = k.split(":")
+    for (const c of value?.submissions ?? []) {
+      const at = validIso(c.at), hm = bkkTime(at)
+      add({ at, day, email: c.savedBy, branch, app: "checklist", action: "ส่ง Morning Store Checklist", detail: `ผ่าน ${c.pass}/${c.total}` + (c.inspector ? ` · ผู้ตรวจ ${c.inspector}` : ""), late: due && hm > due ? due : "" })
+    }
+  }
+  for (const { key: k, value } of await store.list("rec:case:")) {
+    if (!inRange(k)) continue
+    const [, , branch, day] = k.split(":"), visits = new Map<string, any[]>()
+    for (const c of value?.cases ?? []) {
+      visits.set(c.visitId || c.id, [...(visits.get(c.visitId || c.id) ?? []), c])
+      if (c.editedByEmail) add({ at: validIso(c.editedAt), day, email: c.editedByEmail, branch, app: "case", action: "แก้ไข Service Case", detail: [c.product, c.model, c.result].filter(Boolean).join(" · ") + (c.editedBy ? ` · โดย ${c.editedBy}` : "") })
+    }
+    for (const list of visits.values()) {
+      const c = list[0]
+      add({ at: validIso(c.ts) || validIso(c.savedAt), day, email: c.savedBy, branch, app: "case", action: "บันทึก Service Case",
+        detail: `${list.length} เคส · ` + list.map((x: any) => [x.product, x.model, x.result].filter(Boolean).join(" ")).join(" / ") + (c.staff ? ` · ผู้บันทึก ${c.staff}` : "") })
+    }
+  }
+  for (const { key: k, value } of await store.list("rec:st:")) {
+    if (!inRange(k)) continue
+    const [, , branch, day] = k.split(":")
+    for (const e of value?.entries ?? []) {
+      const what = [ST_CATS[e.cat] ?? e.cat, e.model, e.color, e.size].filter(Boolean).join(" ") + ` × ${e.qty}`
+      add({ at: validIso(e.ts) || validIso(e.savedAt), day, email: e.savedBy, branch, app: "st", action: "บันทึกยอดขาย (ST Report)", detail: what + (e.staff ? ` · ผู้บันทึก ${e.staff}` : "") })
+      if (e.deletedAt) add({ at: validIso(e.deletedAt), day, email: e.deletedBy, branch, app: "st", action: "ลบรายการ ST Report", detail: what })
+    }
+    for (const r of value?.reports ?? [])
+      add({ at: validIso(r.at), day, email: r.savedBy, branch, app: "st", action: `ส่ง ST Report รอบ ${r.round}` + (r.round === 1 ? " (10:00–15:00)" : " (ทั้งวัน)"), detail: r.staff ? `ผู้ส่ง ${r.staff}` : "" })
+  }
+  // opened the hub: one row per email per day (first – last time)
+  const lockOf = (email: string) => lockedBranchFor(logins.find(l => canonEmail(l.email) === canonEmail(email)), isOwnerEmail(email)) ?? ""
+  for (const { key: k, value } of await store.list("act:seen:")) {
+    const day = k.split(":")[2]
+    if (!(day >= from && day <= to)) continue
+    for (const x of Object.values<any>(value ?? {}))
+      add({ at: validIso(x.first), day, email: x.email, branch: lockOf(x.email), app: "seen", action: "เข้าใช้งาน HUAWEI Hub",
+        detail: `ครั้งแรก ${bkkTime(x.first)} · ล่าสุด ${bkkTime(x.last)} · ${x.n} ครั้ง` })
+  }
+  rows.sort((a, b) => b.at.localeCompare(a.at))
+  const notes = Object.fromEntries(logins.map(l => [canonEmail(l.email), l.note || ""]))
+  const people = [...new Set(rows.map(r => r.email))].map(email => ({ email, note: notes[canonEmail(email)] ?? "", branch: lockOf(email) }))
+  return json({ ok: true, from, to, due, total: rows.length, rows: rows.slice(0, 20000), people })
+}
+
 /* ---------------- routes ---------------- */
 export async function recordsRoute(req: Request, url: URL): Promise<Response | null> {
   const p = url.pathname
+  if (p === "/api/admin/activity" && req.method === "GET") {
+    try {
+      const owner = await ownerOf(req); if (owner instanceof Response) return owner
+      return await activity(url)
+    } catch (e) {
+      console.error("[rec] activity error", String(e))
+      return json({ ok: false, error: "โหลดประวัติไม่สำเร็จ ลองใหม่อีกครั้ง" }, 500)
+    }
+  }
   if (!p.startsWith("/api/rec/")) return null
   try {
     if (p === "/api/rec/summary" && req.method === "GET") {

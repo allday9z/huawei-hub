@@ -14,14 +14,14 @@ const OWNERS = (process.env.HUB_OWNER_EMAILS ?? "benyapakamonphan@gmail.com")
 // Gmail ignores dots and "+tag" (wetaga.chow@gmail.com == wetagachow@gmail.com): compare that way, so an
 // account whose Google token carries the other spelling still matches its entry (same rule as the
 // Report Dashboard script v4).
-function canonEmail(email: string): string {
+export function canonEmail(email: string): string {
   const e = String(email || "").toLowerCase().trim(), at = e.lastIndexOf("@")
   if (at < 0) return e
   let user = e.slice(0, at), domain = e.slice(at + 1)
   if (domain === "gmail.com" || domain === "googlemail.com") { user = user.split("+")[0].replace(/\./g, ""); domain = "gmail.com" }
   return user + "@" + domain
 }
-const isOwnerEmail = (email: string) => OWNERS.some(o => canonEmail(o) === canonEmail(email))
+export const isOwnerEmail = (email: string) => OWNERS.some(o => canonEmail(o) === canonEmail(email))
 // Local testing only: accept "dev:<email>" as a token. Never set in production.
 const DEV_AUTH = process.env.HUB_DEV_AUTH === "1"
 const FILE_STORE = process.env.HUB_STORE_FILE ?? "/tmp/huawei-hub-store.json"
@@ -215,6 +215,26 @@ async function verifyGoogle(token: string): Promise<string | null> {
   } catch { return null }
 }
 const bearer = (req: Request) => (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim()
+// ⚙️ pages: the Google token must belong to an owner (same check as /api/admin/load)
+export async function ownerOf(req: Request): Promise<string | Response> {
+  const email = await verifyGoogle(bearer(req))
+  if (!email) return json({ ok: false, error: "auth" }, 401)
+  if (!isOwnerEmail(email)) return json({ ok: false, error: "notadmin", email }, 403)
+  return email
+}
+
+/* ---------------- who opened the hub (⚙️ > การใช้งาน) ----------------
+   First / last time and count per email per day, from the portal's sign-in check (whoami):
+   act:seen:<YYYY-MM-DD> -> { [canonEmail]: { email, first, last, n } } */
+async function noteSeen(email: string) {
+  const day = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10), now = new Date().toISOString()
+  await locked(async () => {
+    const k = "act:seen:" + day, d = (await store.get(k)) ?? {}, c = canonEmail(email)
+    const x = d[c] ?? (d[c] = { email, first: now, last: now, n: 0 })
+    x.last = now; x.n++
+    await store.set(k, d)
+  })
+}
 
 /* ---------------- device session (cookie) ----------------
    Google ID tokens last 1 hour, but staff keep Service Case / ST Report open all day. After the portal
@@ -250,7 +270,7 @@ function cookieHeader(value: string, maxAge: number): string {
 // Branch accounts are locked to their branch (Antt, 20 Oct 2026): the branch code at the start of the note
 // (e.g. "HMD-HKT"), else the shop email pattern hmdhktbyuficon@gmail.com -> HMD-HKT. The owner and the
 // "ทุกเมนู" (HOHW) accounts are not locked — they choose the branch.
-function lockedBranchFor(login: Login | undefined, isOwner: boolean): string | null {
+export function lockedBranchFor(login: Login | undefined, isOwner: boolean): string | null {
   if (isOwner || !login) return null
   if (login.branch && BRANCH_CODES.has(login.branch)) return login.branch   // set on ⚙️
   if (login.branch === "*" || login.menus === "*") return null
@@ -396,6 +416,7 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       const res = json({ ok: true, email, ...a })
       // Allowed device: (re)issue the session cookie used by the record pages.
       if (a.allowed) res.headers.append("Set-Cookie", cookieHeader(await signSession(email), SESSION_DAYS * 86400))
+      if (a.allowed) noteSeen(email).catch(e => console.error("[hub] seen", String(e)))
       return res
     }
     if (p === "/api/hub/logout" && req.method === "POST") {
