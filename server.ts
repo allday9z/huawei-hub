@@ -3,7 +3,7 @@
 // static routing is unchanged: /checklist -> site/checklist.html, etc.
 import { stat } from "node:fs/promises"
 import { resolve, sep } from "node:path"
-import { hubRoute, initHub } from "./hub"
+import { hubRoute, initHub, pageGate } from "./hub"
 import { recordsRoute } from "./records"
 
 const PORT = Number(process.env.PORT ?? 80)
@@ -151,6 +151,8 @@ Bun.serve({
       return rewrite(req, ip)
     }
     if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method Not Allowed", { status: 405 })
+    const gate = await pageGate(req, url.pathname)   // e.g. แบบร่างอีเมล B2B while it is switched off
+    if (gate) return gate
     return serveStatic(url.pathname)
   },
 })

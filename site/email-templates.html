@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>แบบร่างอีเมล B2B</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F5F7;--card:#fff;--ink:#1D1D1F;--muted:#6E6E73;--line:#E6E6EB;--chip:#F1F1F4;--red:#C7000B;--red2:#E0242E;--red-t:#FDECEC;--ok:#1B7F3B;--ok-t:#E7F5EC}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:'IBM Plex Sans Thai',-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif;color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(180deg,#F9E1E2 0,var(--bg) 320px) no-repeat,var(--bg)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
+.hello{padding:4px 4px 14px}
+.hello small{display:block;font-size:12px;font-weight:700;color:var(--red);letter-spacing:1px}
+.hello h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+.hello p{font-size:14px;color:var(--muted);margin-top:2px}
+
+.search{position:relative;margin-bottom:10px}
+.search input{width:100%;border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 14px 12px 40px;font-size:15px}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--muted)}
+.cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-size:13.5px;white-space:nowrap;font-weight:500}
+.cat.on{background:var(--ink);border-color:var(--ink);color:#fff}
+
+.list{display:flex;flex-direction:column;gap:10px}
+.tpl{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%}
+.tpl .ic{width:40px;height:40px;border-radius:12px;background:var(--red-t);color:var(--red);display:grid;place-items:center;flex:none}
+.tpl .ic svg{width:21px;height:21px}
+.tpl .tx{flex:1;min-width:0}
+.tpl b{display:block;font-size:15.5px;font-weight:600}
+.tpl span{display:block;font-size:13px;color:var(--muted);line-height:1.45;margin-top:2px}
+.tpl em{display:inline-block;font-style:normal;font-size:11.5px;font-weight:600;color:var(--red);background:var(--red-t);border-radius:6px;padding:1px 7px;margin-top:6px}
+.empty{text-align:center;color:var(--muted);padding:30px 10px}
+
+/* ตัวแก้แบบร่าง */
+.sheet{position:fixed;inset:0;background:rgba(20,20,22,.4);z-index:80;display:flex;align-items:flex-end;justify-content:center}
+.panel{background:var(--bg);width:100%;overflow-x:hidden;max-width:720px;max-height:94vh;overflow:auto;border-radius:24px 24px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom))}
+@media(min-width:720px){.sheet{align-items:center}.panel{border-radius:24px}}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ph h2{font-size:19px;font-weight:700}
+.x{border:0;background:var(--chip);width:34px;height:34px;border-radius:50%;font-size:18px;flex:none}
+.box{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+.box .lbl{font-size:12.5px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:8px;display:flex;justify-content:space-between}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.fields label.full{grid-column:1/-1}
+.fields input{width:100%;min-width:0;border:1px solid var(--line);background:var(--chip);border-radius:11px;padding:10px 11px;font-size:15px;color:var(--ink)}
+.fields input:focus{outline:2px solid rgba(199,0,11,.25);background:#fff}
+.fields input.miss{border-color:#F3B4B7;background:#FFF6F6}
+.mem{font-size:11px;color:var(--ok)}
+.subj{font-weight:600;font-size:15px;line-height:1.5;padding:2px 0 10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.body{white-space:pre-wrap;font-size:14.5px;line-height:1.7}
+.body mark,.subj mark{background:#FFF0C2;color:#7A5200;border-radius:4px;padding:0 3px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{border:0;border-radius:14px;padding:13px 10px;font-weight:600;font-size:14.5px;background:#fff;border:1px solid var(--line)}
+.btn.red{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.full{grid-column:1/-1}
+.tip{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--hub-dock,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hello">
+    <small>HUAWEI HUB BY UFICON</small>
+    <h1>แบบร่างอีเมล B2B</h1>
+    <p>อีเมลแนะนำร้านถึงหน่วยงานและองค์กรใกล้สาขา เติมข้อมูลแล้วเปิดใน Gmail ได้เลย</p>
+  </header>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="ค้นหา เช่น สถานศึกษา, นัดเข้าพบ, ติดตาม" autocomplete="off">
+  </div>
+  <div class="cats" id="cats"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true">
+    <div class="ph"><h2 id="tTitle">-</h2><button class="x" id="close" type="button" aria-label="ปิด">×</button></div>
+    <div class="box">
+      <div class="lbl"><span>ข้อมูลที่ต้องเติม</span><span id="missInfo"></span></div>
+      <div class="fields" id="fields"></div>
+    </div>
+    <div class="box">
+      <div class="lbl"><span>ตัวอย่างอีเมล</span></div>
+      <div class="subj" id="pvSubj"></div>
+      <div class="body" id="pvBody"></div>
+    </div>
+    <div class="acts">
+      <button class="btn red full" id="gmail" type="button">เปิดใน Gmail</button>
+      <button class="btn" id="cpSubj" type="button">คัดลอกหัวเรื่อง</button>
+      <button class="btn" id="cpBody" type="button">คัดลอกเนื้อความ</button>
+      <button class="btn full" id="mailapp" type="button">เปิดในแอปอีเมลของเครื่อง</button>
+    </div>
+    <p class="tip">ช่องที่ยังไม่ได้เติมจะเป็นแถบสีเหลืองในตัวอย่าง · ชื่อร้าน เบอร์ติดต่อ และ LINE ที่กรอกไว้ ระบบจำไว้ในเครื่องนี้ให้ครั้งต่อไป</p>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   แบบร่างอีเมล – แก้ไข/เพิ่มได้ที่รายการ TEMPLATES ด้านล่าง
+   ใส่ช่องให้เติมด้วย {ชื่อช่อง} เช่น {ชื่อลูกค้า} {รุ่นสินค้า}
+   ============================================================ */
+const MALLS = {'HES-TMN':'The Mall Ngamwongwan','HES-KBI':'Central Krabi','HMD-HKT':'Central Festival Phuket','HMD-CCS':'Robinson Lifestyle Chachoengsao',
+  'HMD-CWN':'Central Chaengwattana','HMD-EMQ':'EmQuartier','HMD-MVH':'Market Village HuaHin','HMD-KKC':'Central Khonkaen Campus','HMD-CNV':'Central Northville'};
+
+const FIELD_INFO = {
+  'ชื่อผู้ติดต่อ':  {ph:'เช่น คุณวรรณา'},
+  'ตำแหน่ง':       {ph:'เช่น ผู้จัดการฝ่ายบุคคล'},
+  'ชื่อหน่วยงาน':   {ph:'เช่น บริษัท ABC จำกัด / โรงเรียน…', full:true},
+  'สินค้าที่แนะนำ': {ph:'เช่น MatePad, HUAWEI Watch', full:true},
+  'วันที่':         {ph:'เช่น 5 พ.ย. 2569'},
+  'เวลา':          {ph:'เช่น 10:00 น.'},
+  'สถานที่':        {ph:'เช่น ห้องประชุมของหน่วยงาน'},
+  'วันที่เข้าพบ':    {ph:'เช่น 30 ต.ค. 2569'},
+  'จำนวน':         {ph:'เช่น 20 เครื่อง'},
+  'รายละเอียด':     {ph:'พิมพ์รายละเอียดเพิ่มเติม', full:true},
+  'ค่ะ/ครับ':       {remember:true, ph:'ค่ะ หรือ ครับ'},
+  'ชื่อร้าน':       {remember:true, full:true},
+  'ที่ตั้งร้าน':     {remember:true, full:true, ph:'เช่น ชั้น 2 Central Festival Phuket'},
+  'ชื่อพนักงาน':    {remember:false},
+  'ตำแหน่งพนักงาน': {remember:true, ph:'เช่น ผู้จัดการสาขา'},
+  'เบอร์ติดต่อ':    {remember:true, ph:'เบอร์ร้าน / มือถือ'},
+  'อีเมลร้าน':      {remember:true, ph:'อีเมลของสาขา'},
+  'LINE':          {remember:true, ph:'เช่น @huaweihub'}
+};
+
+const TEMPLATES = [
+  {cat:'เริ่มติดต่อ', icon:'hand', title:'แนะนำร้านและบริการสำหรับองค์กร', desc:'อีเมลแรกถึงหน่วยงานใกล้สาขา แนะนำตัวและบริการที่ร้านช่วยได้',
+   subject:'แนะนำ {ชื่อร้าน} – สินค้าและบริการ HUAWEI สำหรับ {ชื่อหน่วยงาน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+{ตำแหน่ง} {ชื่อหน่วยงาน}
+
+ขออนุญาตแนะนำตัว {ชื่อพนักงาน} {ตำแหน่งพนักงาน} จาก {ชื่อร้าน} ตั้งอยู่ที่ {ที่ตั้งร้าน} และขอแนะนำบริการของร้านสำหรับองค์กร{ค่ะ/ครับ}
+
+ทางร้านดูแลสินค้า HUAWEI ครบทุกกลุ่ม ทั้งสมาร์ตโฟน แท็บเล็ต สมาร์ตวอทช์ หูฟัง และอุปกรณ์เสริม พร้อมบริการสำหรับหน่วยงาน เช่น
+• ให้คำปรึกษาเลือกรุ่นให้เหมาะกับการใช้งานของทีม
+• สาธิตสินค้าและสอนการใช้งานให้บุคลากร
+• ช่วยตั้งค่าเครื่องและดูแลหลังการขายที่หน้าร้าน
+
+หาก {ชื่อหน่วยงาน} มีแผนจัดหาอุปกรณ์ หรือสนใจให้ทีมงานเข้าไปแนะนำสินค้า ทางร้านยินดีนัดหมายตามวันเวลาที่สะดวก{ค่ะ/ครับ}`},
+
+  {cat:'เริ่มติดต่อ', icon:'school', title:'แนะนำสำหรับสถานศึกษา', desc:'โรงเรียน มหาวิทยาลัย สถาบันกวดวิชา – เน้นแท็บเล็ตเพื่อการเรียน',
+   subject:'อุปกรณ์ HUAWEI เพื่อการเรียนการสอน สำหรับ {ชื่อหน่วยงาน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+{ตำแหน่ง} {ชื่อหน่วยงาน}
+
+{ชื่อพนักงาน} จาก {ชื่อร้าน} ขอนำเสนออุปกรณ์ HUAWEI สำหรับการเรียนการสอน{ค่ะ/ครับ}
+
+สินค้าที่เหมาะกับสถานศึกษา: {สินค้าที่แนะนำ}
+
+ทางร้านสามารถเข้าไปสาธิตการใช้งานให้คณาจารย์หรือนักเรียน เช่น การจดบันทึกด้วยปากกา การใช้งานเอกสาร และแอปเพื่อการเรียน รวมถึงช่วยตั้งค่าเครื่องให้พร้อมใช้งาน
+
+หากสนใจรายละเอียดเพิ่มเติม หรือต้องการนัดสาธิตสินค้า กรุณาแจ้งวันเวลาที่สะดวกได้เลย{ค่ะ/ครับ}`},
+
+  {cat:'เริ่มติดต่อ', icon:'heart', title:'เสนอกิจกรรมสุขภาพ / Wellness สำหรับพนักงาน', desc:'บริษัท โรงพยาบาล ฟิตเนส – เน้นนาฬิกาและอุปกรณ์สุขภาพ',
+   subject:'เสนอกิจกรรม Wellness ด้วย HUAWEI Wearable สำหรับ {ชื่อหน่วยงาน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+{ตำแหน่ง} {ชื่อหน่วยงาน}
+
+{ชื่อร้าน} ขอเสนอกิจกรรมดูแลสุขภาพสำหรับบุคลากรของ {ชื่อหน่วยงาน} โดยใช้อุปกรณ์ HUAWEI Wearable {ค่ะ/ครับ}
+
+ตัวอย่างสินค้า: {สินค้าที่แนะนำ}
+รูปแบบกิจกรรม: {รายละเอียด}
+
+ทางร้านยินดีเข้าไปแนะนำสินค้าและสาธิตฟีเจอร์ด้านสุขภาพ เช่น การติดตามการออกกำลังกาย การนอน และการวัดค่าต่างๆ ตามวันเวลาที่สะดวก{ค่ะ/ครับ}`},
+
+  {cat:'นัดหมาย / ติดตาม', icon:'calendar', title:'ขอนัดเข้าพบ / นำเสนอสินค้า', desc:'ขอเวลาเข้าไปนำเสนอหรือสาธิตสินค้าที่หน่วยงาน',
+   subject:'ขอนัดหมายนำเสนอสินค้า HUAWEI – {ชื่อร้าน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+{ตำแหน่ง} {ชื่อหน่วยงาน}
+
+ทางร้านขอนัดหมายเข้าพบเพื่อนำเสนอและสาธิต {สินค้าที่แนะนำ} ใช้เวลาประมาณ 30–45 นาที
+
+วันเวลาที่เสนอ: {วันที่} เวลา {เวลา}
+สถานที่: {สถานที่}
+
+หากวันเวลาดังกล่าวไม่สะดวก รบกวนแจ้งช่วงเวลาที่เหมาะสม ทางร้านพร้อมปรับตาม{ค่ะ/ครับ}`},
+
+  {cat:'นัดหมาย / ติดตาม', icon:'chat', title:'ติดตามหลังส่งอีเมลแนะนำ', desc:'ส่งต่อเมื่อยังไม่ได้รับการตอบกลับหลังอีเมลแรก',
+   subject:'ติดตาม: บริการสำหรับองค์กรจาก {ชื่อร้าน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+
+ขออนุญาตติดตามอีเมลที่ทางร้านได้ส่งไปเมื่อวันที่ {วันที่} เรื่องสินค้าและบริการ HUAWEI สำหรับ {ชื่อหน่วยงาน} {ค่ะ/ครับ}
+
+หากตอนนี้ยังไม่มีแผนจัดหาอุปกรณ์ ไม่เป็นไรเลย{ค่ะ/ครับ} ทางร้านยินดีเป็นช่องทางติดต่อเมื่อหน่วยงานต้องการคำแนะนำในอนาคต หรือหากสะดวกให้ข้อมูลผู้ดูแลเรื่องนี้โดยตรง จะขอบคุณมาก{ค่ะ/ครับ}`},
+
+  {cat:'นัดหมาย / ติดตาม', icon:'check', title:'ขอบคุณหลังเข้าพบ', desc:'สรุปสิ่งที่คุยกันและขั้นตอนต่อไป หลังนำเสนอเสร็จ',
+   subject:'ขอบคุณสำหรับการต้อนรับ – {ชื่อร้าน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+
+ขอบคุณที่ให้เวลาทางร้านเข้าพบเมื่อวันที่ {วันที่เข้าพบ} {ค่ะ/ครับ}
+
+สรุปสิ่งที่ได้พูดคุย:
+{รายละเอียด}
+
+ความต้องการเบื้องต้น: {สินค้าที่แนะนำ} จำนวน {จำนวน}
+
+ทางร้านจะประสานทีมองค์กรของบริษัทเพื่อจัดทำรายละเอียดและใบเสนอราคาให้ และจะแจ้งกลับภายในวันที่ {วันที่} {ค่ะ/ครับ}`},
+
+  {cat:'ข้อเสนอ', icon:'spark', title:'เสนอจัด Demo / อบรมการใช้งานที่หน่วยงาน', desc:'เสนอเข้าไปจัดบูธสาธิตหรืออบรมการใช้งานให้บุคลากร',
+   subject:'เสนอจัดสาธิตสินค้า HUAWEI ที่ {ชื่อหน่วยงาน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+{ตำแหน่ง} {ชื่อหน่วยงาน}
+
+{ชื่อร้าน} ขอเสนอจัดกิจกรรมสาธิตสินค้าและแนะนำการใช้งานให้บุคลากรของ {ชื่อหน่วยงาน} โดยไม่มีค่าใช้จ่าย{ค่ะ/ครับ}
+
+สินค้าที่นำไปสาธิต: {สินค้าที่แนะนำ}
+รูปแบบ: {รายละเอียด}
+วันที่ที่เสนอ: {วันที่} เวลา {เวลา}
+
+ทางร้านจะเตรียมเครื่องสาธิตและทีมงานไปเอง ต้องการเพียงพื้นที่ตั้งโต๊ะเล็กๆ หากสนใจ รบกวนแจ้งกลับเพื่อยืนยันวันเวลา{ค่ะ/ครับ}`},
+
+  {cat:'ข้อเสนอ', icon:'box', title:'ส่งต่อความต้องการให้ทีมองค์กร (HO)', desc:'แจ้งลูกค้าว่าร้านรับเรื่องแล้ว และทีม HO จะติดต่อเรื่องราคา',
+   subject:'รับทราบความต้องการของ {ชื่อหน่วยงาน} – {ชื่อร้าน}',
+   body:`เรียน {ชื่อผู้ติดต่อ}
+
+ขอบคุณที่สนใจสินค้า HUAWEI {ค่ะ/ครับ} ทางร้านได้รับข้อมูลความต้องการแล้ว ดังนี้
+
+สินค้า: {สินค้าที่แนะนำ}
+จำนวน: {จำนวน}
+รายละเอียดเพิ่มเติม: {รายละเอียด}
+
+ทางร้านได้ส่งต่อข้อมูลให้ทีมฝ่ายขายองค์กรของบริษัท ซึ่งจะติดต่อกลับเพื่อเสนอราคาและเงื่อนไขภายในวันที่ {วันที่} ระหว่างนี้หากต้องการทดลองสินค้า สามารถแวะมาที่ร้านได้เลย{ค่ะ/ครับ}`}
+];
+
+// ลงท้ายทุกฉบับ
+const SIGNATURE = `
+
+ขอแสดงความนับถือ
+{ชื่อพนักงาน}
+{ตำแหน่งพนักงาน} · {ชื่อร้าน}
+{ที่ตั้งร้าน}
+โทร {เบอร์ติดต่อ} · อีเมล {อีเมลร้าน} · LINE {LINE}`;
+
+
+/* ===== ตัวช่วย ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store = { get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
+const nick = n => String(n||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
+const IC = {
+  hand:'<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v7.5a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.3 15a1.6 1.6 0 0 1 2.5-2L8 15"/>',
+  school:'<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6 11v4.5c0 1.5 2.7 3 6 3s6-1.5 6-3V11M21.5 9v5"/>',
+  heart:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  invoice:'<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2z"/><path d="M9 7.5h6M9 11.5h6M9 15.5h4"/>',
+  calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  box:'<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/>',
+  bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/>',
+  tool:'<path d="M14.5 6.5a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/>',
+  check:'<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9.5"/>',
+  chat:'<path d="M21 12a8 8 0 0 1-11.8 7L4 20.5l1.5-4.6A8 8 0 1 1 21 12z"/>',
+  map:'<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  tag:'<path d="M20.5 13.5 13.5 20.5a2 2 0 0 1-2.8 0L3 12.8V3h9.8l7.7 7.7a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/>'
+};
+const svg = k => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(IC[k]||IC.chat)+'</svg>';
+
+// ค่าเริ่มต้นจากการเข้าสู่ระบบสาขา (ถ้ามี) + ค่าที่จำไว้ในเครื่อง
+const hub = store.get('hcl_settings',{}) || {};
+const remembered = store.get('tpl_fields',{});
+function defaults(){
+  const d = Object.assign({}, remembered);
+  if(!d['ชื่อร้าน']) d['ชื่อร้าน'] = 'HUAWEI by UFicon' + (MALLS[hub.branch] ? ' สาขา '+MALLS[hub.branch] : '');
+  if(hub.staff) d['ชื่อพนักงาน'] = nick(hub.staff);
+  if(!d['ค่ะ/ครับ']) d['ค่ะ/ครับ'] = 'ค่ะ';
+  return d;
+}
+
+/* ===== รายการ ===== */
+let cat = 'ทั้งหมด';
+const cats = ['ทั้งหมด'].concat([...new Set(TEMPLATES.map(t=>t.cat))]);
+function renderList(){
+  $('cats').innerHTML = cats.map(c=>'<button type="button" class="cat'+(c===cat?' on':'')+'" data-cat="'+esc(c)+'">'+esc(c)+'</button>').join('');
+  const q = $('q').value.trim().toLowerCase();
+  const items = TEMPLATES.map((t,i)=>Object.assign({i},t)).filter(t=>(cat==='ทั้งหมด'||t.cat===cat) &&
+    (!q || (t.title+' '+t.desc+' '+t.cat+' '+t.subject+' '+t.body).toLowerCase().includes(q)));
+  $('list').innerHTML = items.length ? items.map(t=>'<button type="button" class="tpl" data-i="'+t.i+'"><span class="ic">'+svg(t.icon)+'</span><span class="tx"><b>'+esc(t.title)+'</b><span>'+esc(t.desc)+'</span><em>'+esc(t.cat)+'</em></span></button>').join('')
+    : '<div class="empty">ไม่พบแบบร่างที่ค้นหา</div>';
+}
+
+/* ===== ตัวแก้ ===== */
+let cur = null, vals = {};
+const keysOf = t => { const k=[]; (t.subject+t.body+SIGNATURE).replace(/\{([^{}]+)\}/g,(m,x)=>{ if(!k.includes(x)) k.push(x); }); return k; };
+function fill(text, mark){
+  return text.replace(/\{([^{}]+)\}/g,(m,k)=>{
+    const v = (vals[k]||'').trim();
+    if(mark) return v ? esc(v) : '<mark>'+esc(k)+'</mark>';
+    return v || '{'+k+'}';
+  });
+}
+function markText(text){ // แสดงตัวอย่าง: escape ส่วนที่ไม่ใช่ช่อง แล้วไฮไลต์ช่องว่าง
+  return text.split(/(\{[^{}]+\})/).map(p=>/^\{[^{}]+\}$/.test(p) ? fill(p,true) : esc(p)).join('');
+}
+function open(i){
+  cur = TEMPLATES[i]; vals = defaults();
+  $('tTitle').textContent = cur.title;
+  // ช่องเฉพาะของแบบร่างนี้ก่อน ช่องลายเซ็นไว้ท้าย
+  const sig = ['ค่ะ/ครับ','ชื่อพนักงาน','ตำแหน่งพนักงาน','ชื่อร้าน','ที่ตั้งร้าน','เบอร์ติดต่อ','อีเมลร้าน','LINE'];
+  const keys = keysOf(cur).sort((a,b)=>(sig.includes(a)?1:0)-(sig.includes(b)?1:0));
+  $('fields').innerHTML = '<label class="full">อีเมลผู้รับ (ถ้ามี)<input id="to" type="email" inputmode="email" placeholder="name@example.com"></label>' +
+    keys.map(k=>{ const f=FIELD_INFO[k]||{};
+      return '<label'+(f.full||k==='รายละเอียด'?' class="full"':'')+'><span>'+esc(k)+(f.remember?' <span class="mem">· จำไว้</span>':'')+'</span>'+
+        '<input data-k="'+esc(k)+'" value="'+esc(vals[k]||'')+'" placeholder="'+esc(f.ph||'')+'"></label>'; }).join('');
+  preview(); $('sheet').hidden = false;
+  setTimeout(()=>{ const first=[...document.querySelectorAll('#fields input[data-k]')].find(x=>!x.value); (first||$('to')).focus(); },50);
+}
+function preview(){
+  $('pvSubj').innerHTML = markText(cur.subject);
+  $('pvBody').innerHTML = markText(cur.body + SIGNATURE);
+  const miss = keysOf(cur).filter(k=>!(vals[k]||'').trim());
+  $('missInfo').textContent = miss.length ? 'ยังไม่ได้เติม '+miss.length+' ช่อง' : 'เติมครบแล้ว';
+  document.querySelectorAll('#fields input[data-k]').forEach(el=>el.classList.toggle('miss', !el.value.trim()));
+}
+const subject = () => fill(cur.subject);
+const bodyText = () => fill(cur.body + SIGNATURE);
+function remember(){
+  const r = store.get('tpl_fields',{});
+  Object.keys(FIELD_INFO).forEach(k=>{ if(FIELD_INFO[k].remember && (vals[k]||'').trim()) r[k]=vals[k].trim(); });
+  store.set('tpl_fields', r);
+}
+function warnMissing(){
+  const miss = keysOf(cur).filter(k=>!(vals[k]||'').trim());
+  if(miss.length) toast('ยังไม่ได้เติม: '+miss.slice(0,3).join(', ')+(miss.length>3?' …':''));
+  return miss.length;
+}
+async function copy(t){
+  try{ await navigator.clipboard.writeText(t); return true; }catch(e){}
+  const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){} ta.remove(); return ok;
+}
+let tt; function toast(m){ const el=$('toast'); el.textContent=m; el.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('on'),2400); }
+
+/* ===== ปุ่ม ===== */
+document.addEventListener('click',e=>{
+  const c=e.target.closest('[data-cat]'); if(c){ cat=c.dataset.cat; renderList(); return; }
+  const t=e.target.closest('.tpl'); if(t){ open(Number(t.dataset.i)); }
+});
+$('q').addEventListener('input',renderList);
+$('fields').addEventListener('input',e=>{ const k=e.target.dataset.k; if(k){ vals[k]=e.target.value; preview(); } });
+$('close').onclick=()=>{ $('sheet').hidden=true; };
+$('sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') $('sheet').hidden=true; });
+$('cpSubj').onclick=async()=>{ remember(); toast(await copy(subject())?'คัดลอกหัวเรื่องแล้ว':'คัดลอกไม่ได้'); };
+$('cpBody').onclick=async()=>{ remember(); if(!warnMissing()) toast(await copy(bodyText())?'คัดลอกเนื้อความแล้ว':'คัดลอกไม่ได้'); else copy(bodyText()); };
+$('gmail').onclick=()=>{ remember(); warnMissing();
+  const u='https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent($('to').value.trim())+'&su='+encodeURIComponent(subject())+'&body='+encodeURIComponent(bodyText());
+  window.open(u,'_blank','noopener'); };
+$('mailapp').onclick=()=>{ remember(); warnMissing();
+  location.href='mailto:'+encodeURIComponent($('to').value.trim())+'?subject='+encodeURIComponent(subject())+'&body='+encodeURIComponent(bodyText()); };
+
+renderList();
+</script>
+<script src="/hub-nav.js"></script>
+</body>
+</html>

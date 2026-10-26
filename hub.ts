@@ -58,6 +58,9 @@ const SEED_APPS: Omit<App, "id">[] = [
 const RECORDS_APP: Omit<App, "id"> = { icon: "chart", name: "รายงานสาขา", desc: "สรุป Service Case · ST Report ทุกสาขา + ดาวน์โหลด Excel (เฉพาะผู้ดูแล)", url: "/records", audience: "ผู้ดูแล", moment: "รายงาน", due: "", active: true }
 // ST Report (Antt, 20 Oct 2026) — added to the menu by a one-time migration (see loadAll).
 const ST_REPORT_APP: Omit<App, "id"> = { icon: "file", name: "ST Report", desc: "กด + ทุกครั้งที่ขายได้ ส่งรายงานรอบ 15:00 และปิดร้าน", url: "/st-report", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: true }
+// แบบร่างอีเมล B2B (Antt, 26 Oct 2026): added to เครื่องมือ but switched off ("ปิดใช้งานไม่ให้คนอื่นใช้งานก่อน") —
+// hidden, on nobody's menu; owners still see it (marked) and can open it. Turn it on at ⚙️ > แอปในพอร์ทัล.
+const EMAIL_TPL_APP: Omit<App, "id"> = { icon: "megaphone", name: "แบบร่างอีเมล B2B", desc: "อีเมลแนะนำร้านถึงหน่วยงานและองค์กรใกล้สาขา เติมข้อมูลแล้วเปิดใน Gmail", url: "/email-templates", audience: "ทุกคน", moment: "ระหว่างวัน", due: "", active: false }
 // = ALLOWED_EMAILS of the Report Dashboard script on 16 Oct 2026 (+ wetaga.chow confirmed by Antt)
 const SEED_LOGINS: [string, string][] = [
   ["benyapakamonphan@gmail.com", "เจ้าของระบบ"], ["marketing.uficon@gmail.com", ""], ["th.verapat@gmail.com", "วีรภัทร (หนึ่ง) · HOHW"],
@@ -179,6 +182,17 @@ async function migrateStReport() {
       console.log("[hub] added รายงานสาขา to the menu (id " + id + ")")
     }
     await store.set("mig_records_app", true)
+  }
+  // Once: แบบร่างอีเมล B2B, hidden and on nobody's menu yet.
+  if (!(await store.get("mig_email_tpl"))) {
+    if (!apps.some(a => a.url === EMAIL_TPL_APP.url)) {
+      const id = Math.max(0, ...apps.map(a => a.id)) + 1
+      apps.push({ id, ...EMAIL_TPL_APP })
+      log.unshift({ at: nowTH(), by: "ระบบ", op: "เพิ่มแอป", detail: EMAIL_TPL_APP.name + " (ปิดใช้งานอยู่)" })
+      await store.set("apps", apps); await store.set("log", log.slice(0, 300))
+      console.log("[hub] added แบบร่างอีเมล B2B to the menu, hidden (id " + id + ")")
+    }
+    await store.set("mig_email_tpl", true)
   }
 }
 
@@ -302,7 +316,27 @@ function normBranches(v: unknown): string {
   if (list.includes("*")) return "*"
   return [...new Set(list.filter(x => BRANCH_CODES.has(x)))].join(", ")
 }
-const publicApps = (apps: App[]) => apps.filter(a => a.active).map(({ id, active, ...a }) => a)
+// Owners also get the hidden apps, marked, so they can try one before switching it on for everyone.
+const OFF_NOTE = "ปิดใช้งานอยู่ · เห็นเฉพาะเจ้าของระบบ"
+const publicApps = (apps: App[], owner = false) => apps.filter(a => a.active || owner).map(({ id, active, ...a }) => active ? a : { ...a, desc: OFF_NOTE + (a.desc ? " — " + a.desc : ""), off: true })
+
+/* Pages that open only for accounts allowed to use them: the owner always; anyone else only once the app is
+   shown on ⚙️ and ticked for their email. Not signed in on this device -> the portal signs in and comes back. */
+const GATED_PAGES = new Set([EMAIL_TPL_APP.url])
+export async function pageGate(req: Request, pathname: string): Promise<Response | null> {
+  const page = pathname.replace(/\.html$/, "").replace(/\/+$/, "")
+  if (!GATED_PAGES.has(page)) return null
+  const email = await sessionEmail(req)
+  if (!email) return new Response(null, { status: 302, headers: { Location: "/?relogin=1&next=" + encodeURIComponent(page), "Cache-Control": "no-store" } })
+  const d = await loadAll(), app = d.apps.find(a => a.url === page), a = await accountAccess(email)
+  if (a.isOwner || (app?.active && a.menus?.includes(page))) return null
+  console.log(`[hub] page ${page} blocked for ${email}`)
+  return new Response(`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ยังไม่เปิดใช้งาน</title>
+<style>body{font-family:-apple-system,'Leelawadee UI','Noto Sans Thai',sans-serif;background:#F5F5F7;color:#1D1D1F;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}
+div{background:#fff;border:1px solid #E6E6EB;border-radius:20px;padding:24px;max-width:380px;text-align:center}h1{font-size:19px;margin:0 0 8px}p{color:#6E6E73;font-size:14px;margin:0 0 16px}a{color:#C7000B;font-weight:600;text-decoration:none}</style></head>
+<body><div><h1>เครื่องมือนี้ยังไม่เปิดใช้งาน</h1><p>${app?.active ? "บัญชีนี้ยังไม่มีสิทธิ์ใช้เครื่องมือนี้ ติดต่อผู้ดูแลระบบ" : "ผู้ดูแลระบบยังปิดเครื่องมือนี้ไว้ก่อน"}</p><a href="/">← กลับหน้าแรก</a></div></body></html>`,
+    { status: 403, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } })
+}
 const publicTeam = (staff: Staff[]) => staff.filter(s => s.active).map(s => ({ name: s.name, branch: s.branches }))
 
 function teamJs(team: { name: string; branch: string }[]): string {
@@ -404,7 +438,10 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       const d = await loadAll()
       return new Response(teamJs(publicTeam(d.staff)), { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" } })
     }
-    if (p === "/api/hub/apps" && req.method === "GET") return json({ ok: true, apps: publicApps((await loadAll()).apps) })
+    if (p === "/api/hub/apps" && req.method === "GET") {
+      const email = await sessionEmail(req)
+      return json({ ok: true, apps: publicApps((await loadAll()).apps, !!email && isOwnerEmail(email)) })
+    }
     if (p === "/api/hub/team" && req.method === "GET") return json({ ok: true, team: publicTeam((await loadAll()).staff) })
     if (p === "/api/admin/whoami" && req.method === "GET") {
       const email = await verifyGoogle(bearer(req))
