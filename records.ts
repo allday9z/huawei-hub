@@ -128,7 +128,7 @@ const bkkTime = (iso: string) => { const t = new Date(iso); return isNaN(+t) ? "
    Antt's sheet (26 Oct 2026). FOOT_SHEET_URL = the /exec URL of apps-script/FootTrafficSheet.gs deployed on that sheet
    (Coolify env; nothing is sent while it is empty). One row per branch + day, upserted by the script, so every push is a
    full snapshot of that day (taps, undo, deletes all end up right). Pushes are batched ~20 s after the last tap and retried
-   every minute; the first start with a new URL sends every day already counted (marker foot_sheet_synced). */
+   every minute; the first start with a new URL sends every day already counted (marker foot_sheet_synced), retried every 5 min until it works. */
 const FOOT_SHEET_URL = (process.env.FOOT_SHEET_URL ?? "").trim()
 // same periods as the Foot Traffic page — before 10:00 counts in ช่วงเช้า, after 22:00 in ช่วงค่ำ
 const FOOT_PERIODS = [{ name: "ช่วงเช้า", to: 12 }, { name: "ช่วงเที่ยง", to: 14 }, { name: "ช่วงบ่าย", to: 17 }, { name: "ช่วงเย็น", to: 20 }, { name: "ช่วงค่ำ", to: 99 }]
@@ -182,7 +182,11 @@ export async function initFootSheet() {
     for (let i = 0; i < keys.length; i += 100) if (!(await pushFootSheet(keys.slice(i, i + 100)))) throw new Error("push failed")
     await store.set("foot_sheet_synced", FOOT_SHEET_URL)
     console.log(`[foot-sheet] on — sent all ${keys.length} branch-day(s) counted so far`)
-  } catch (e) { console.error("[foot-sheet] first full send failed, retry on next start:", String(e)) }
+  } catch (e) {
+    // e.g. the web app is not shared with "Anyone" yet — keep trying, so fixing the deployment is enough
+    console.error("[foot-sheet] first full send failed, retry in 5 min:", String(e))
+    setTimeout(initFootSheet, 5 * 60_000)
+  }
 }
 
 /* ---------------- Excel ---------------- */
