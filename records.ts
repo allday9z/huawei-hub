@@ -369,7 +369,8 @@ async function summary(url: URL) {
     byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 1000) / 10 : 0, last: b.last,
       fails: b.fails, failDays: b.failDays, perfect: b.perfect }])) }
   // Foot Traffic: customers in / talked to / bills, by branch, day and hour (+ device sales of the same branch from ST)
-  const ft = { ...FOOT_ZERO(), byBranch: {} as Record<string, Record<string, number>>, byDay: {} as Record<string, number>, byHour: {} as Record<string, Record<string, number>> } as any
+  // byDayHour: customers in per day × hour for the heatmap (Antt, 27 Oct 2026)
+  const ft = { ...FOOT_ZERO(), byBranch: {} as Record<string, Record<string, number>>, byDay: {} as Record<string, number>, byHour: {} as Record<string, Record<string, number>>, byDayHour: {} as Record<string, Record<string, number>> } as any
   for (const { key: k, value } of await store.list("rec:foot:")) {
     if (!inRange(k)) continue
     const [, , br, day] = k.split(":"), live = (value?.entries ?? []).filter((e: any) => !e.deletedAt)
@@ -379,7 +380,7 @@ async function summary(url: URL) {
       const kind = FOOT_KINDS[e.kind] ? e.kind : "in"
       ft[kind] += e.qty; b[kind] += e.qty
       if (kind === "in") bump(ft.byDay, day, e.qty)
-      const h = footHour(e); if (h) { const x = (ft.byHour[h] ??= FOOT_ZERO()); x[kind] += e.qty }
+      const h = footHour(e); if (h) { const x = (ft.byHour[h] ??= FOOT_ZERO()); x[kind] += e.qty; if (kind === "in") bump((ft.byDayHour[day] ??= {}), h, e.qty) }
     }
   }
   const foot = { ...ft, devices: Object.fromEntries(Object.entries(st.byBranch).map(([br, x]) => [br, [...DEVICE_CATS].reduce((a, c) => a + (x[c] ?? 0), 0)])) }

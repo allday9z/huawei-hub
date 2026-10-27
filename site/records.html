@@ -57,6 +57,15 @@ h2 .dot{width:10px;height:10px;border-radius:50%;background:var(--red)}
 .days .d{flex:1 0 14px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:14px}
 .days .d i{display:block;width:100%;background:var(--red);border-radius:4px 4px 0 0;min-height:2px}
 .days .d small{font-size:10px;color:var(--muted);margin-top:3px}
+/* Foot Traffic heatmap: day × hour (Antt, 27 ต.ค. 2026) */
+.heat{border-collapse:separate;border-spacing:4px;font-size:12px;font-variant-numeric:tabular-nums}
+.heat th{font-weight:600;color:var(--muted);font-size:11px;padding:0 2px;white-space:nowrap;text-align:center}
+.heat th.day{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;padding-right:6px}
+.heat td{min-width:36px;height:30px;border-radius:7px;text-align:center;font-weight:600;color:#1A1A1A;background:#EDEDF1}
+.heat td.z{color:#B4B4BC;font-weight:500}
+.heat td.sum{background:none;color:var(--ink);font-weight:700;padding-left:4px}
+.heatleg{display:flex;align-items:center;gap:8px;justify-content:flex-end;font-size:11.5px;color:var(--muted);margin-top:8px}
+.heatleg i{width:120px;height:9px;border-radius:9px;background:linear-gradient(90deg,#4FB8B0,#9CCB86,#E9C46A,#F2A65A,#EE7D4B)}
 .empty{color:var(--muted);font-size:14px;padding:6px 0}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13.5px}
@@ -124,6 +133,9 @@ tfoot td{font-weight:700}
       <div class="card"><h3>ลูกค้าเข้าร้านรายชั่วโมง <small>รวมทุกวันในช่วงที่เลือก</small></h3><div class="days" id="ftHour"></div></div>
       <div class="card"><h3>ลูกค้าเข้าร้านรายวัน</h3><div class="days" id="ftDay"></div></div>
     </div>
+    <div class="card" style="margin-top:12px"><h3>Heatmap ลูกค้าเข้าร้าน <small>วัน × ชั่วโมง · สีส้มเข้ม = คนเยอะ</small></h3>
+      <div class="scroll"><table class="heat" id="ftHeat"></table></div>
+      <div class="heatleg"><span>น้อย</span><i></i><span id="ftHeatMax">มาก</span></div></div>
     <p class="empty" style="margin:2px 4px 0;font-size:12.5px">เริ่มนับตั้งแต่ 26 ต.ค. 2026 (เมนู Foot Traffic)</p>
     </div>
     <div id="secSt">
@@ -229,6 +241,23 @@ function renderFoot(d, brs){
   const hmax = Math.max(1, ...hs.map(h => n((f.byHour[h]||{}).in)));
   $('ftHour').innerHTML = n(f.in) ? hs.map(h => { const x = f.byHour[h]||{}, v = n(x.in); return '<div class="d" title="'+h+':00 – เข้าร้าน '+v+' · ซื้อ '+n(x.buy)+' บิล"><i style="height:'+(v/hmax*100)+'%"></i><small>'+Number(h)+'</small></div>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';
   daysChart($('ftDay'), d.from, d.to, k => f.byDay[k] || 0);
+  // Heatmap: one row per day (up to today), one column per hour 10–21 (+ any hour that has taps), colour teal → yellow → orange
+  const dh = f.byDayHour || {}, dayList = [], dd = new Date(d.from+'T00:00:00'), dEnd = new Date((d.to < d.today ? d.to : d.today)+'T00:00:00');
+  let guard = 0; while(dd <= dEnd && guard++ < 400){ dayList.push(ymd(dd)); dd.setDate(dd.getDate()+1); }
+  const hcols = [...new Set(['10','11','12','13','14','15','16','17','18','19','20','21', ...Object.values(dh).flatMap(o => Object.keys(o))])].sort();
+  const vmax = Math.max(1, ...Object.values(dh).flatMap(o => Object.values(o)));
+  const STOPS = [[79,184,176],[156,203,134],[233,196,106],[242,166,90],[238,125,75]];
+  const heatColor = v => { const t = Math.min(1, v / vmax) * (STOPS.length - 1), i = Math.min(STOPS.length - 2, Math.floor(t)), k = t - i, a = STOPS[i], b = STOPS[i+1];
+    return 'rgb('+a.map((x, j) => Math.round(x + (b[j]-x)*k)).join(',')+')'; };
+  const kfmt = v => v >= 1000 ? (v/1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, '')+'K' : String(v);
+  const TH_D = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  $('ftHeat').innerHTML = !n(f.in) || !dayList.length ? '<tbody><tr><td class="z" style="background:none">ยังไม่มีข้อมูลในช่วงนี้</td></tr></tbody>' :
+    '<thead><tr><th class="day"></th>'+hcols.map(h => '<th>'+h+':00</th>').join('')+'<th>รวม</th></tr></thead><tbody>'+
+    dayList.slice().map(day => { const row = dh[day] || {}, dt = new Date(day+'T00:00:00'), sum = hcols.reduce((a, h) => a + (row[h]||0), 0);
+      return '<tr><th class="day">'+TH_D[dt.getDay()]+' '+Number(day.slice(8))+'/'+Number(day.slice(5,7))+'</th>'+
+        hcols.map(h => { const v = row[h] || 0; return v ? '<td style="background:'+heatColor(v)+'" title="'+day+' '+h+':00 – เข้าร้าน '+v+' คน">'+kfmt(v)+'</td>' : '<td class="z" title="'+day+' '+h+':00 – 0">0</td>'; }).join('')+
+        '<td class="sum">'+fmt(sum)+'</td></tr>'; }).join('')+'</tbody>';
+  $('ftHeatMax').textContent = 'มาก ('+fmt(vmax)+' คน/ชม.)';
 }
 function render(d){
   renderFoot(d, d.branch ? [d.branch] : d.branches);
