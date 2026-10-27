@@ -101,7 +101,7 @@ tfoot td{font-weight:700}
       <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
     </div>
   </section>
-  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="foot">Foot Traffic</button><button type="button" data-v="ckdash">Report Dashboard</button></div>
+  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="foot">Foot Traffic</button><button type="button" data-v="ckdash">Store Morning Checklist</button></div>
   <div class="msg" id="msg" hidden></div>
 
   <!-- Checklist Report Dashboard (Google Sheet, ทุกสาขา รายวัน / สัปดาห์ / เดือน) อยู่ในรายงานสาขา (Antt, 27 ต.ค. 2026) -->
@@ -167,7 +167,7 @@ $('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
 // มุมมอง (เลือกจากแถบ "แดชบอร์ด"): all | case | st
 // old links to the Checklist tab (moved to ⚙️ การใช้งาน) open the Report Dashboard tab
 let view = qs.get('view') === 'check' ? 'ckdash' : ['case','st','foot','ckdash'].includes(qs.get('view')) ? qs.get('view') : 'all';
-const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist', foot:'แดชบอร์ด Foot Traffic', ckdash:'Checklist Report Dashboard' };
+const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist', foot:'แดชบอร์ด Foot Traffic', ckdash:'Store Morning Checklist' };
 function applyView(){
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
   $('secCase').hidden = !['all','case'].includes(view); $('secSt').hidden = !['all','st'].includes(view); $('secFoot').hidden = !['all','foot'].includes(view);
