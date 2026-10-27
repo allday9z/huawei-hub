@@ -153,7 +153,7 @@ function ico(n,s,c){var P={"store": "<path d=\"m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8
   .extra.show{display:block;}
   .extra input{font-size:17.5px;padding:8px 10px;font-weight:700;}
   .extra-label{font-size:15.5px;color:var(--muted);margin-bottom:3px;display:block;font-weight:800;}
-  .extra textarea.passdetail{font-size:17.5px;padding:10px 12px;font-weight:700;line-height:1.55;min-height:150px;max-height:60vh;resize:vertical;}
+  .extra textarea.passdetail{font-size:17.5px;padding:12px 14px;font-weight:700;line-height:1.6;min-height:240px;overflow:hidden;resize:vertical;}   /* ใหญ่ขึ้น + ขยายตามข้อความไม่จำกัด (Antt, 27 ต.ค. 2026) */
   .extra-hint{display:block;font-size:13.5px;color:var(--muted);font-weight:600;margin:-2px 0 6px;}
 
   .cat-total{
@@ -549,7 +549,7 @@ CATEGORIES.forEach((cat, ci)=>{
       ${passReq ? `<div class="extra pass-extra" id="${id}-extra-pass">
         <span class="extra-label">${passReq.label} <span style="color:#d9362f;">*</span></span>
         <span class="extra-hint">พิมพ์ได้หลายบรรทัด กด Enter เพื่อขึ้นบรรทัดใหม่ ช่องจะขยายตามข้อความ</span>
-        <textarea id="${id}-passdetail" class="passdetail" rows="5" placeholder="${passReq.placeholder}" oninput="calc()"></textarea>
+        <textarea id="${id}-passdetail" class="passdetail" rows="8" placeholder="${passReq.placeholder}" oninput="calc()"></textarea>
       </div>` : ''}`;
     body.appendChild(div);
   });
@@ -600,7 +600,7 @@ function onChange(id){
 function growBox(el){
   if(!el || !el.offsetParent) return;
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight + 2, window.innerHeight * 0.6) + 'px';
+  el.style.height = (el.scrollHeight + 2) + 'px';   // grows with every line typed — no inner scrollbar
 }
 document.addEventListener('input', e => { if(e.target.matches && e.target.matches('textarea.passdetail')) growBox(e.target); });
 
