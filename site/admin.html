@@ -121,6 +121,9 @@ label.l{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap
 .who{cursor:pointer}
 .who:hover .name{text-decoration:underline}
 @media (max-width:560px){ .actf{grid-template-columns:1fr 1fr} }
+.cks>li{align-items:center;gap:10px}
+.cks .st{flex:none;min-width:74px;text-align:center;font-size:12.5px;font-weight:700;border-radius:8px;padding:4px 6px}
+.cks .st.ok{background:var(--ok-soft,#e7f6ec);color:var(--ok,#1e8e3e)} .cks .st.no{background:var(--red-soft,#fdecec);color:var(--red)} .cks .st.na{background:var(--chip);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -192,6 +195,7 @@ $('logoGate').src = $('logoTop').src;
 let token = null;
 let D = null;            // ข้อมูลจากเซิร์ฟเวอร์
 let tab = store.get('hub_admin_tab','apps'); if(!['apps','staff','logins','act','log'].includes(tab)) tab='apps';
+if(/^#(apps|staff|logins|act|log)$/.test(location.hash)) tab = location.hash.slice(1);   // /admin#act from รายงานสาขา › Checklist
 let editApp = null;
 let staffFilter = 'ALL', editStaff = null, editLogin = null;
 
@@ -361,6 +365,34 @@ function actNote(email){
   const p = actD && actD.people.find(x=>x.email===email);
   return (l && l.note) || (p && p.note) || '';
 }
+// Morning Checklist: สาขาไหนส่งแล้ว / ยังไม่ส่ง กี่โมง ใครตรวจ — ย้ายมาจาก รายงานสาขา › Checklist (Antt, 27 ต.ค. 2569)
+function viewCkSent(one){
+  const today = actD.today || bkDay(Date.now()), due = actD.due || '';
+  const days = []; for(let d = new Date(actQ.from+'T12:00:00Z'); d <= new Date(actQ.to+'T12:00:00Z') && days.length < 70; d.setUTCDate(d.getUTCDate()+1)){ const k = d.toISOString().slice(0,10); if(k <= today) days.push(k); }
+  const ck = actD.rows.filter(r=>r.app==='checklist');   // ล่าสุดก่อน
+  const brs = D.branches.map(b=>b.code).filter(b=>!actBr || b===actBr);
+  const latest = {};   // branch|day -> latest send of that day
+  for(const r of ck){ const k = r.branch+'|'+r.day; if(!latest[k]) latest[k] = r; }
+  const score = r => r.total ? (r.pass||0)+'/'+r.total : (r.detail||'').replace(/ · .*$/,'').replace(/^ผ่าน /,'');
+  let sent = 0;
+  const items = brs.map(b=>{
+    const name = (D.branches.find(x=>x.code===b)||{}).name || '';
+    if(one){
+      const r = latest[b+'|'+actQ.from], future = actQ.from > today;
+      if(r) sent++;
+      return '<li><span class="st '+(r?'ok':future?'na':'no')+'">'+(r?'ส่งแล้ว':future?'–':'ยังไม่ส่ง')+'</span><div class="main"><div class="name">'+b+' <span class="hint">'+esc(name)+'</span></div>'+
+        (r ? '<div class="sub">ส่ง '+bkHM(r.at)+' น.'+(r.late?' <span class="tagb red">หลัง '+esc(r.late)+'</span>':'')+' · ผ่าน '+esc(score(r))+(r.inspector?' · ผู้ตรวจ '+esc(r.inspector):'')+' · '+esc(r.email)+'</div>' : (due && !future ? '<div class="sub">กำหนดส่ง '+esc(due)+' น.</div>' : ''))+'</div></li>';
+    }
+    const got = days.filter(d=>latest[b+'|'+d]), late = got.filter(d=>latest[b+'|'+d].late).length;
+    const last = got.length ? latest[b+'|'+got.sort().slice(-1)[0]] : null;
+    if(got.length === days.length && days.length) sent++;
+    return '<li><span class="st '+(!days.length?'na':got.length===days.length?'ok':'no')+'">'+got.length+'/'+days.length+' วัน</span><div class="main"><div class="name">'+b+' <span class="hint">'+esc(name)+'</span>'+(late?' <span class="tagb red">ส่งหลัง '+esc(due)+' '+late+' วัน</span>':'')+'</div>'+
+      (last ? '<div class="sub">ล่าสุด '+last.day.slice(8)+'/'+last.day.slice(5,7)+' '+bkHM(last.at)+' น. · ผ่าน '+esc(score(last))+(last.inspector?' · ผู้ตรวจ '+esc(last.inspector):'')+'</div>' : '<div class="sub">ยังไม่ได้ส่งในช่วงนี้</div>')+'</div></li>';
+  });
+  const head = one ? 'ส่งแล้ว '+sent+'/'+brs.length+' สาขา' : 'ส่งครบทุกวัน '+sent+'/'+brs.length+' สาขา · '+days.length+' วัน';
+  return '<section class="card"><div class="bar" style="margin-bottom:4px"><b class="grow">Morning Checklist — สาขาที่ส่ง'+(one?' · '+esc(thDay(actQ.from)):'')+'</b><span class="hint">'+head+(due?' · กำหนด '+esc(due)+' น.':'')+'</span></div>'+
+    '<ul class="rows cks">'+items.join('')+'</ul></section>';
+}
 function viewAct(){
   if(!actD && !actBusy) setTimeout(loadAct);
   const emails = [...new Set([...(actD?actD.people.map(p=>p.email):[]), ...D.logins.filter(l=>l.active).map(l=>l.email)])].sort();
@@ -378,6 +410,7 @@ function viewAct(){
   if(!actD) return h + '<section class="card"><p class="hint">'+(actBusy?'กำลังโหลด…':'โหลดไม่สำเร็จ กด ↻ โหลดใหม่')+'</p></section>';
   const rows = actD.rows.filter(r=>(actApp==='all'||r.app===actApp) && (!actBr||r.branch===actBr) && (!actEm||r.email===actEm));
   const one = actQ.from===actQ.to;
+  if(actApp==='all' || actApp==='checklist') h += viewCkSent(one);
   // สรุปตามอีเมล
   const by = {};
   for(const r of rows){

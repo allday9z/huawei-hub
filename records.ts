@@ -344,22 +344,30 @@ async function summary(url: URL) {
     bump(st.sent, br, new Set((value?.reports ?? []).map((r: any) => r.round)).size)
   }
   // Morning Store Checklist: which branches sent it on which days, latest + average score, items that failed most
-  const ck = { sends: 0, byBranch: {} as Record<string, { days: number; sends: number; scoreSum: number; last: any }>, byDay: {} as Record<string, number>, failItems: {} as Record<string, number>, today: [] as string[] }
+  // + score summary like the old Report Dashboard (Antt, 27 Oct 2026): average per day, branch-days with a fail, fails per branch
+  const ck = { sends: 0, byBranch: {} as Record<string, { days: number; sends: number; scoreSum: number; last: any; fails: number; failDays: number; perfect: number }>, byDay: {} as Record<string, number>,
+    failItems: {} as Record<string, number>, today: [] as string[], dayScore: {} as Record<string, { sum: number; n: number }> }
   const today = bkkToday()
   for (const { key: k, value } of await store.list("rec:check:")) {
     if (!inRange(k)) continue
     const [, , br, day] = k.split(":"), subs = value?.submissions ?? []
     if (!subs.length) continue
-    const b = (ck.byBranch[br] ??= { days: 0, sends: 0, scoreSum: 0, last: null })
+    const b = (ck.byBranch[br] ??= { days: 0, sends: 0, scoreSum: 0, last: null, fails: 0, failDays: 0, perfect: 0 })
     b.days++; bump(ck.byDay, day); if (day === today) ck.today.push(br)
     const latest = subs.reduce((a: any, x: any) => (!a || (x.at || "") > (a.at || "") ? x : a), null)
-    b.scoreSum += latest.total ? latest.pass / latest.total : 0   // one score per branch-day = its latest send
+    const score = latest.total ? latest.pass / latest.total : 0
+    b.scoreSum += score   // one score per branch-day = its latest send
+    const ds = (ck.dayScore[day] ??= { sum: 0, n: 0 }); ds.sum += score; ds.n++
+    const nFail = (latest.items ?? []).filter((i: any) => i.status === "fail").length || Number(latest.fail) || 0
+    b.fails += nFail; if (nFail) b.failDays++; if (latest.total && latest.pass === latest.total) b.perfect++
     if (!b.last || day > b.last.date || (day === b.last.date && latest.at > b.last.at)) b.last = { date: day, time: bkkTime(latest.at), inspector: latest.inspector, pass: latest.pass, fail: latest.fail, total: latest.total, at: latest.at }
     ck.sends += subs.length; b.sends += subs.length
     for (const i of latest.items ?? []) if (i.status === "fail") bump(ck.failItems, i.text)
   }
   const checklist = { sends: ck.sends, byDay: ck.byDay, today: ck.today, failItems: top(ck.failItems, 10),
-    byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 100) : 0, last: b.last }])) }
+    scoreByDay: Object.fromEntries(Object.entries(ck.dayScore).map(([d, x]) => [d, Math.round(x.sum / x.n * 1000) / 10])),
+    byBranch: Object.fromEntries(Object.entries(ck.byBranch).map(([br, b]) => [br, { days: b.days, sends: b.sends, avg: b.days ? Math.round(b.scoreSum / b.days * 1000) / 10 : 0, last: b.last,
+      fails: b.fails, failDays: b.failDays, perfect: b.perfect }])) }
   // Foot Traffic: customers in / talked to / bills, by branch, day and hour (+ device sales of the same branch from ST)
   const ft = { ...FOOT_ZERO(), byBranch: {} as Record<string, Record<string, number>>, byDay: {} as Record<string, number>, byHour: {} as Record<string, Record<string, number>> } as any
   for (const { key: k, value } of await store.list("rec:foot:")) {
@@ -397,7 +405,7 @@ async function activity(url: URL): Promise<Response> {
   const inRange = (k: string) => { const d = k.split(":")[3]; return d >= from && d <= to }
   const { apps, logins } = await loadAll()
   const due = apps.find(a => a.url === "/checklist")?.due ?? ""
-  const rows: { at: string; day: string; email: string; branch: string; app: string; action: string; detail: string; late?: string }[] = []
+  const rows: { at: string; day: string; email: string; branch: string; app: string; action: string; detail: string; late?: string; inspector?: string; pass?: number; total?: number }[] = []
   const add = (r: (typeof rows)[number]) => { if (r.at && r.email) rows.push(r) }
 
   for (const { key: k, value } of await store.list("rec:check:")) {
@@ -405,7 +413,8 @@ async function activity(url: URL): Promise<Response> {
     const [, , branch, day] = k.split(":")
     for (const c of value?.submissions ?? []) {
       const at = validIso(c.at), hm = bkkTime(at)
-      add({ at, day, email: c.savedBy, branch, app: "checklist", action: "ส่ง Morning Store Checklist", detail: `ผ่าน ${c.pass}/${c.total}` + (c.inspector ? ` · ผู้ตรวจ ${c.inspector}` : ""), late: due && hm > due ? due : "" })
+      add({ at, day, email: c.savedBy, branch, app: "checklist", action: "ส่ง Morning Store Checklist", detail: `ผ่าน ${c.pass}/${c.total}` + (c.inspector ? ` · ผู้ตรวจ ${c.inspector}` : ""), late: due && hm > due ? due : "",
+        inspector: c.inspector || "", pass: c.pass, total: c.total })
     }
   }
   for (const { key: k, value } of await store.list("rec:case:")) {
@@ -460,7 +469,7 @@ async function activity(url: URL): Promise<Response> {
   rows.sort((a, b) => b.at.localeCompare(a.at))
   const notes = Object.fromEntries(logins.map(l => [canonEmail(l.email), l.note || ""]))
   const people = [...new Set(rows.map(r => r.email))].map(email => ({ email, note: notes[canonEmail(email)] ?? "", branch: lockOf(email) }))
-  return json({ ok: true, from, to, due, total: rows.length, rows: rows.slice(0, 20000), people })
+  return json({ ok: true, from, to, due, today: bkkToday(), total: rows.length, rows: rows.slice(0, 20000), people })
 }
 
 /* Foot Traffic page: GET today's taps of a branch (+ ST device sales and Service Case customers for the rates),
