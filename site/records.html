@@ -58,6 +58,22 @@ h2 .dot{width:10px;height:10px;border-radius:50%;background:var(--red)}
 .days .d i{display:block;width:100%;background:var(--red);border-radius:4px 4px 0 0;min-height:2px}
 .days .d small{font-size:10px;color:var(--muted);margin-top:3px}
 /* Foot Traffic heatmap: day × hour (Antt, 27 ต.ค. 2026) */
+/* ST Report: product mix donut (Antt, 27 ต.ค. 2026) */
+.pieseg{display:inline-flex;background:#E9E9EE;border-radius:10px;padding:3px;gap:3px;margin:-2px 0 10px}
+.pieseg button{border:0;background:none;border-radius:8px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.pieseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pie{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.donut{position:relative;width:150px;height:150px;border-radius:50%;flex:none;background:#EDEDF1}
+.donut::after{content:"";position:absolute;inset:26%;border-radius:50%;background:var(--card)}
+.donut b{position:absolute;inset:0;display:grid;place-content:center;text-align:center;z-index:1;font-size:22px;line-height:1.1}
+.donut b small{display:block;font-size:11px;font-weight:500;color:var(--muted)}
+.plegend{list-style:none;margin:0;padding:0;flex:1;min-width:150px;display:grid;gap:6px}
+.plegend li{display:grid;grid-template-columns:12px 1fr auto auto;align-items:center;gap:8px;font-size:13px}
+.plegend i{width:12px;height:12px;border-radius:4px}
+.plegend span{color:var(--muted);font-variant-numeric:tabular-nums}
+.plegend b{min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.plegend li{white-space:nowrap}
+@media (max-width:420px){.donut{width:118px;height:118px}.donut b{font-size:19px}.pie{gap:14px}.plegend{min-width:0}.plegend li{gap:6px;font-size:12.5px}}
 .heat{border-collapse:separate;border-spacing:4px;font-size:12px;font-variant-numeric:tabular-nums}
 .heat th{font-weight:600;color:var(--muted);font-size:11px;padding:0 2px;white-space:nowrap;text-align:center}
 .heat th.day{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;padding-right:6px}
@@ -143,9 +159,12 @@ tfoot td{font-weight:700}
     <div class="kpis" id="stKpi"></div>
     <div class="card"><h3>ยอดแต่ละสาขา <small>ส่งรายงาน = จำนวนรอบที่กด "ส่งรายงาน"</small></h3><div class="scroll"><table id="stTable"></table></div></div>
     <div class="grid2">
+      <div class="card"><h3>สัดส่วนประเภทสินค้า <small>จำนวนชิ้นที่ขาย</small></h3>
+        <div class="pieseg" id="pieSeg"><button type="button" data-p="all" class="on">ทุกประเภท</button><button type="button" data-p="dev">เฉพาะเครื่อง</button></div>
+        <div class="pie"><div class="donut" id="stPie"></div><ul class="plegend" id="stPieLeg"></ul></div></div>
       <div class="card"><h3>รุ่นที่ขายดี</h3><div class="bars" id="models"></div></div>
-      <div class="card"><h3>ยอดขายเครื่องรายวัน <small>Phone · Tablet · Watch · Audio · IoT</small></h3><div class="days" id="stDay"></div></div>
     </div>
+    <div class="card" style="margin-top:12px"><h3>ยอดขายเครื่องรายวัน <small>Phone · Tablet · Watch · Audio · IoT</small></h3><div class="days" id="stDay"></div></div>
     </div>
   </main>
 </div>
@@ -281,8 +300,23 @@ function render(d){
     brs.map(b=>{ const x = s.byBranch[b] || {}; return '<tr><td>'+b+'</td>'+cols.map(([k])=>'<td>'+(x[k]?fmt(x[k]):'<span style="color:#C7C7CC">0</span>')+'</td>').join('')+'<td>'+fmt(s.sent[b]||0)+' รอบ</td></tr>'; }).join('')+
     '</tbody>'+(brs.length>1?'<tfoot><tr><td>รวม</td>'+cols.map(([k])=>'<td>'+fmt(s.totals[k])+'</td>').join('')+'<td>'+fmt(Object.values(s.sent).reduce((a,b)=>a+b,0))+' รอบ</td></tr></tfoot>':'');
   bars($('models'), s.models.map(x=>({name:x.name, total:x.count})));
+  stTotals = s.totals; drawPie();
   daysChart($('stDay'), d.from, d.to, k => s.byDay[k] || 0);
 }
+
+// สัดส่วนประเภทสินค้า: share of units sold per category (all products, or devices only)
+const PIE_CATS = [['phone','Phone','#C7000B'],['tablet','Tablet','#EE6A3C'],['watch','Watch','#F4A950'],['audio','Audio','#4FB8B0'],['iot','IoT','#3D7DD8'],['accy','HUAWEI Accy','#8E5BD0'],['third','Third-Party','#A2A6AE']];
+let stTotals = {}, pieMode = 'all';
+function drawPie(){
+  const cats = PIE_CATS.filter(c => pieMode === 'all' || !['accy','third'].includes(c[0]));
+  const rows = cats.map(([k, name, color]) => ({ name, color, v: stTotals[k] || 0 })), total = rows.reduce((a, r) => a + r.v, 0);
+  let acc = 0;
+  const stops = rows.filter(r => r.v).map(r => { const a = acc / total * 100; acc += r.v; return r.color+' '+a.toFixed(2)+'% '+(acc / total * 100).toFixed(2)+'%'; });
+  $('stPie').style.background = total ? 'conic-gradient('+stops.join(',')+')' : '#EDEDF1';
+  $('stPie').innerHTML = '<b>'+fmt(total)+'<small>ชิ้น</small></b>';
+  $('stPieLeg').innerHTML = total ? rows.slice().sort((a, b) => b.v - a.v).map(r => '<li><i style="background:'+r.color+'"></i>'+esc(r.name)+'<span>'+fmt(r.v)+'</span><b>'+(r.v ? (r.v/total*100).toFixed(r.v/total < .1 ? 1 : 0) : 0)+'%</b></li>').join('') : '<li class="empty" style="display:block">ยังไม่มีข้อมูลในช่วงนี้</li>';
+}
+document.querySelectorAll('#pieSeg button').forEach(b => b.onclick = () => { pieMode = b.dataset.p; document.querySelectorAll('#pieSeg button').forEach(x => x.classList.toggle('on', x === b)); drawPie(); });
 
 function markQuick(){
   const f = $('from').value, t = $('to').value, today = ymd(new Date()), n = new Date();
