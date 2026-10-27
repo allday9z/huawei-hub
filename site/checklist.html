@@ -174,6 +174,11 @@ function ico(n,s,c){var P={"store": "<path d=\"m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8
   .btn-send{background:linear-gradient(135deg,var(--pass-bg),var(--pass));color:#fff;box-shadow:0 6px 14px rgba(21,128,61,.3);}
   .btn-email{background:#fff;color:var(--ink);border:1.5px solid #ccd1d7;box-shadow:0 1px 2px rgba(16,20,24,.04);}
   .btn-email:hover{border-color:var(--red);}
+  /* ส่งอีเมล appears only after ส่งสรุปผล went through (Antt, 27 Oct 2026) */
+  .btn-email[hidden]{display:none;}
+  .btn-email.pop{animation:emailpop .35s ease-out;}
+  @keyframes emailpop{from{opacity:0;transform:translateY(6px) scale(.96);}to{opacity:1;transform:none;}}
+  .btn-send:disabled{opacity:.7;cursor:wait;}
   button:active{transform:scale(.98);}
   .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);
     background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:17px;font-weight:700;
@@ -310,12 +315,12 @@ function ico(n,s,c){var P={"store": "<path d=\"m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8
       </div>
     </div>
     <div class="btnrow">
-      <button class="btn-send" onclick="sendSummary()">ส่งสรุปผล</button>
-      <button class="btn-email" onclick="openEmailDraft()">ส่งอีเมล</button>
+      <button class="btn-send" id="btnSend" onclick="sendSummary()">ส่งสรุปผล</button>
+      <button class="btn-email" id="btnEmail" onclick="openEmailDraft()" hidden>ส่งอีเมล</button>
     </div>
   </div>
   <div class="info-notes">
-    <div class="info-note">ต้องกรอกให้ครบทุกข้อก่อนจึงจะกด <b>“ส่งสรุปผล”</b> ได้</div>
+    <div class="info-note">ต้องกรอกให้ครบทุกข้อก่อนจึงจะกด <b>“ส่งสรุปผล”</b> ได้ · ส่งสรุปผลแล้วปุ่ม <b>“ส่งอีเมล”</b> จะขึ้นมา</div>
   </div>
 
   <div class="card ref-card">
@@ -757,6 +762,7 @@ function sendSummary(){
   const hubP = saveToHub(payload);
   const hubNote = h => h.ok ? 'บันทึกในระบบแล้ว' : h.status === 401 ? 'ยังไม่ได้บันทึกในระบบ (ต้องเข้าสู่ระบบอีกครั้งที่หน้าแรก)' : 'ยังไม่ได้บันทึกในระบบ';
   const markDone = () => {
+    markSent(payload.branch, payload.date);
     // Tell the portal (same site) that today's checklist is in, so its
     // deadline card shows "ส่งแล้ววันนี้" without pressing "ส่งแล้ว" by hand.
     try{
@@ -765,9 +771,12 @@ function sendSummary(){
     }catch(e){}
   };
 
+  const btnSend = document.getElementById('btnSend');
+  btnSend.disabled = true;
+
   if(!WEBHOOK_URL){
     copyText(text);
-    hubP.then(h => { if(h.ok) markDone(); showToast(hubNote(h) + ' · คัดลอกสรุปผลแล้ว วางในอีเมล/Line ของทีมได้เลย', h.ok ? 'circle-check' : undefined); });
+    hubP.then(h => { btnSend.disabled = false; if(h.ok) markDone(); showToast(hubNote(h) + ' · คัดลอกสรุปผลแล้ว วางในอีเมล/Line ของทีมได้เลย', h.ok ? 'circle-check' : undefined); });
     return;
   }
 
@@ -779,12 +788,14 @@ function sendSummary(){
   .then(r => r.json())
   .then(res => hubP.then(h => {
     copyText(text);
+    btnSend.disabled = false;
     if(res.ok || h.ok) markDone();
     if(res.ok) showToast('ส่งเข้า Google Sheet สำเร็จ · ' + hubNote(h) + ' (คัดลอกสรุปผลไว้ให้ด้วยแล้ว)', 'circle-check');
     else showToast('ส่งเข้า Sheet ไม่สำเร็จ: ' + (res.error||'') + ' · ' + hubNote(h) + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
   }))
   .catch(err => hubP.then(h => {
     copyText(text);
+    btnSend.disabled = false;
     if(h.ok) markDone();
     showToast('เชื่อมต่อ Sheet ไม่สำเร็จ · ' + hubNote(h) + ' — คัดลอกสรุปผลไว้ให้แล้ว ส่งเองได้เลย');
   }));
@@ -795,7 +806,27 @@ function saveToHub(payload){
     .catch(() => ({ ok:false, status:0 }));
 }
 
+// "ส่งอีเมล" shows up only once this branch + date has been sent (Google Sheet or the Hub accepted it).
+// Remembered per branch + date, so it is still there after a reload; another day / branch starts hidden again.
+function sentKey(branch, date){ return 'checklist-sent-' + branch + '-' + date; }
+function isSent(){
+  const k = sentKey(branchSel.value, document.getElementById('date').value);
+  if(window._ckSent === k) return true;
+  try{ return localStorage.getItem(k) === '1'; }catch(e){ return false; }
+}
+function markSent(branch, date){
+  window._ckSent = sentKey(branch, date);
+  try{ localStorage.setItem(sentKey(branch, date), '1'); }catch(e){}
+  updateEmailBtn(true);
+}
+function updateEmailBtn(pop){
+  const b = document.getElementById('btnEmail'), show = isSent();
+  if(show && b.hidden && pop){ b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+  b.hidden = !show;
+}
+
 function openEmailDraft(){
+  if(!isSent()){ showToast('กด “ส่งสรุปผล” ก่อน แล้วปุ่มส่งอีเมลจะขึ้นมา'); updateEmailBtn(); return; }
   const missing = findIncomplete();
   if(missing){
     showToast('กรุณากรอกให้ครบก่อนส่งอีเมล: ' + missing.reason);
@@ -880,6 +911,8 @@ function loadDraft(){
 
 branchSel.addEventListener('change', loadDraft);
 document.getElementById('date').addEventListener('change', loadDraft);
+branchSel.addEventListener('change', () => updateEmailBtn());
+document.getElementById('date').addEventListener('change', () => updateEmailBtn());
 inspectorOther.addEventListener('input', saveDraft);
 
 // ---- AI Rewrite: tidy up what staff typed (POST /api/rewrite on this server) ----
@@ -930,6 +963,7 @@ addRewrite(document.getElementById('general-note'), 'note', '');
 
 loadDraft();
 calc();
+updateEmailBtn();
 document.querySelectorAll('textarea.passdetail').forEach(growBox);
 </script>
 <script src="/hub-nav.js"></script>
