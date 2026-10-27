@@ -8,6 +8,7 @@
 (function () {
   if (window.__hubNav) return;
   window.__hubNav = true;
+  if (window.self !== window.top) return;   // embedded (e.g. Report Dashboard inside รายงานสาขา) — the outer page has the bar
 
   var BRANCH_ALL = '*';
   var TOKEN_KEY = 'hub-dashboard-idtoken';
@@ -140,7 +141,8 @@
   // Checklist = the Report Dashboard app (per-email menus); Service Case / ST Report = /records (owner / Dashboard accounts).
   function dashHtml() {
     var u = user() || {}, admin = !!(u.isOwner || u.canDashboard), list = [];
-    if (canSee(u, { url: '/report-dashboard' })) list.push({ icon: 'checklist', name: 'Morning Store Checklist', desc: 'สรุปคะแนน Checklist ทุกสาขา รายวัน / สัปดาห์ / เดือน', url: '/report-dashboard' });
+    // Checklist Report Dashboard lives inside รายงานสาขา for admins (Antt, 27 Oct 2026); others keep the page itself
+    if (canSee(u, { url: '/report-dashboard' })) list.push({ icon: 'checklist', name: 'Morning Store Checklist', desc: 'สรุปคะแนน Checklist ทุกสาขา รายวัน / สัปดาห์ / เดือน', url: admin ? '/records?view=ckdash' : '/report-dashboard' });
     if (admin) {
       list.push({ icon: 'tool', name: 'Service Case', desc: 'เคสที่ช่วยลูกค้า สำเร็จ / ไม่สำเร็จ เรื่องที่เจอบ่อย แยกสาขา', url: '/records?view=case' });
       list.push({ icon: 'receipt', name: 'ST Report', desc: 'ยอดขายแต่ละหมวด รุ่นขายดี รอบที่ส่งรายงาน แยกสาขา', url: '/records?view=st' });
@@ -150,7 +152,7 @@
     apps.forEach(function (a) { if (isReport(a) && a.url !== '/report-dashboard' && a.url !== '/records' && canSee(u, a)) list.push(a); });
     var curView = path === '/records' ? (new URLSearchParams(location.search).get('view') || 'all') : '';
     return '<h3>แดชบอร์ด</h3><div class="lab">เลือกเรื่องที่ต้องการดู</div><div class="list">' + (list.length ? list.map(function (a) {
-      var on = a.url === '/report-dashboard' ? path === '/report-dashboard' : a.url === '/records?view=' + curView;
+      var on = a.url === '/report-dashboard' ? path === '/report-dashboard' : a.url === '/records?view=' + curView;   // ckdash too
       var ext = /^https?:/.test(a.url);
       return '<a class="row" href="' + esc(a.url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '><span class="ic">' + svg(a.icon) + '</span><span class="tx"><b>' + esc(a.name) + (on ? ' <small style="display:inline;color:#C7000B;font-weight:600">· กำลังดู</small>' : '') + '</b><small>' + esc(a.desc) + '</small></span><span class="chev">›</span></a>';
     }).join('') : '<div class="empty">บัญชีนี้ยังไม่มีแดชบอร์ดที่ดูได้ — ติดต่อผู้ดูแลระบบ</div>') + '</div>';
@@ -163,7 +165,7 @@
       (u.branch
         ? '<div class="row static"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>สาขา ' + esc(u.branch) + '</b><small>ล็อกตามอีเมลของสาขา (ทีม HOHW เท่านั้นที่เลือกสาขาได้)</small></span></div>'
         : '<button class="row" type="button" data-a="branch"><span class="ic">' + svg('swap') + '</span><span class="tx"><b>เปลี่ยนสาขา</b><small>เลือกสาขาของเครื่องนี้ใหม่</small></span><span class="chev">›</span></button>') +
-      (u.isOwner || u.canDashboard ? '<a class="row" href="/records"><span class="ic">' + svg('chart') + '</span><span class="tx"><b>รายงานสาขา</b><small>สรุป Service Case · ST Report · Foot Traffic เป็นแดชบอร์ด + ดาวน์โหลด Excel</small></span><span class="chev">›</span></a>' : '') +
+      (u.isOwner || u.canDashboard ? '<a class="row" href="/records"><span class="ic">' + svg('chart') + '</span><span class="tx"><b>รายงานสาขา</b><small>Checklist Dashboard · Service Case · ST Report · Foot Traffic + ดาวน์โหลด Excel</small></span><span class="chev">›</span></a>' : '') +
       (u.isOwner ? '<a class="row" href="/admin"><span class="ic">' + svg('sliders') + '</span><span class="tx"><b>จัดการพอร์ทัล</b><small>เมนู · รายชื่อทีม · สิทธิ์อีเมล (เฉพาะผู้ดูแล)</small></span><span class="chev">›</span></a>' : '') +
       '<button class="row red" type="button" data-a="out"><span class="ic">' + svg('logout') + '</span><span class="tx"><b>ออกจากระบบ</b></span><span class="chev">›</span></button>' +
       '</div>';

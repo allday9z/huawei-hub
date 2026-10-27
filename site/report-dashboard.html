@@ -1067,6 +1067,15 @@ function renderAutoSummary(){
 
 </script>
 
+<script>
+// ?embed=1 — shown inside รายงานสาขา (/records?view=ckdash): no back link, no page padding of its own
+if(new URLSearchParams(location.search).get('embed')==='1'){
+  document.documentElement.classList.add('embedded');
+  const st = document.createElement('style');
+  st.textContent = '.embedded .back-link{display:none!important} .embedded body{background:transparent!important}';
+  document.head.appendChild(st);
+}
+</script>
 <script src="/hub-nav.js"></script>
 </body>
 </html>

@@ -351,7 +351,9 @@ function render(){
   $('today').textContent = subline();
 
   const order = k => MOMENTS.findIndex(m=>m.key===k);
-  const apps = APPS.filter(canSee).sort((a,b)=>order(a.moment)-order(b.moment));
+  // Checklist Report Dashboard is a tab of รายงานสาขา (Antt, 27 ต.ค. 2026) — accounts that can open รายงานสาขา see one card
+  let apps = APPS.filter(canSee).sort((a,b)=>order(a.moment)-order(b.moment));
+  if(apps.some(a=>a.url==='/records')) apps = apps.filter(a=>a.url!=='/report-dashboard');
   // การ์ดเด่น: งานที่มีกำหนดส่งและยังไม่ส่ง > แอปแรกของช่วงเวลาตอนนี้ > แอปแรก
   const pending = apps.find(a=>{ const st=dueState(a); return st && (st.s==='open'||st.s==='soon') && a.moment===nowKey; });
   const hero = pending || apps.find(a=>a.moment===nowKey) || apps.find(a=>a.moment==='ระหว่างวัน') || apps[0];

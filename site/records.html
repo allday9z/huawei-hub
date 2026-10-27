@@ -65,9 +65,10 @@ th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:
 thead th{font-size:12.5px;color:var(--muted);font-weight:600}
 tfoot td{font-weight:700}
 .loading{opacity:.55;transition:opacity .2s}
-.seg{display:grid;grid-template-columns:repeat(5,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
+.seg{display:grid;grid-template-columns:repeat(6,1fr);background:#E9E9EE;border-radius:14px;padding:4px;gap:4px;margin-bottom:12px}
 .seg button{border:0;background:none;border-radius:11px;padding:9px 4px;font-weight:600;font-size:14px;line-height:1.25;color:var(--muted);cursor:pointer}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+@media (max-width:420px){.seg{gap:2px;padding:3px}.seg button{font-size:12.5px;padding:8px 1px}}
 @media (max-width:720px){
   .filt{grid-template-columns:1fr 1fr}
   .filt .br{grid-column:1/-1}
@@ -91,8 +92,11 @@ tfoot td{font-weight:700}
       <button type="button" data-q="month">เดือนนี้</button><button type="button" data-q="last">เดือนที่แล้ว</button>
     </div>
   </section>
-  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="check">Checklist</button><button type="button" data-v="foot">Foot Traffic</button></div>
+  <div class="seg" id="seg"><button type="button" data-v="all">ทั้งหมด</button><button type="button" data-v="case">Service Case</button><button type="button" data-v="st">ST Report</button><button type="button" data-v="check">Checklist</button><button type="button" data-v="foot">Foot Traffic</button><button type="button" data-v="ckdash">Report Dashboard</button></div>
   <div class="msg" id="msg" hidden></div>
+
+  <!-- Checklist Report Dashboard (Google Sheet, ทุกสาขา รายวัน / สัปดาห์ / เดือน) อยู่ในรายงานสาขา (Antt, 27 ต.ค. 2026) -->
+  <section id="secCkDash" hidden><iframe id="ckDashFrame" title="Checklist Report Dashboard" style="width:100%;min-height:80vh;border:0;border-radius:18px;background:transparent;display:block"></iframe></section>
 
   <main id="main">
     <div id="secCheck">
@@ -158,13 +162,20 @@ $('from').value = qs.get('from') || ymd(new Date(now.getFullYear(), now.getMonth
 $('to').value = qs.get('to') || ymd(now);
 $('branch').value = BRANCHES.includes(qs.get('branch')) ? qs.get('branch') : '';
 // มุมมอง (เลือกจากแถบ "แดชบอร์ด"): all | case | st
-let view = ['case','st','check','foot'].includes(qs.get('view')) ? qs.get('view') : 'all';
-const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist', foot:'แดชบอร์ด Foot Traffic' };
+let view = ['case','st','check','foot','ckdash'].includes(qs.get('view')) ? qs.get('view') : 'all';
+const TITLES = { all:'รายงานสาขา', case:'แดชบอร์ด Service Case', st:'แดชบอร์ด ST Report', check:'แดชบอร์ด Checklist', foot:'แดชบอร์ด Foot Traffic', ckdash:'Checklist Report Dashboard' };
 function applyView(){
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
   $('secCase').hidden = !['all','case'].includes(view); $('secSt').hidden = !['all','st'].includes(view); $('secCheck').hidden = !['all','check'].includes(view); $('secFoot').hidden = !['all','foot'].includes(view);
   document.title = TITLES[view]; document.querySelector('.hello h1').textContent = TITLES[view];
+  // Checklist Dashboard: the Report Dashboard page itself (its own sign-in, month and day / week / month controls)
+  const ck = view === 'ckdash';
+  $('secCkDash').hidden = !ck; $('main').hidden = ck; document.querySelector('.filt').hidden = ck; if(ck) $('msg').hidden = true;
+  const f = $('ckDashFrame');
+  if(ck && !f.src) f.src = '/report-dashboard?embed=1';
 }
+// keep the embedded dashboard as tall as its content (same origin)
+setInterval(()=>{ try{ const f = $('ckDashFrame'); if(!f.src || $('secCkDash').hidden) return; const h = f.contentDocument.documentElement.scrollHeight; if(h && Math.abs(h - f.offsetHeight) > 4) f.style.height = h + 'px'; }catch(e){} }, 500);
 document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; applyView(); history.replaceState(null,'','?'+params()); });
 applyView();
 // บัญชีสาขา (ล็อกตามอีเมล) เห็นเฉพาะสาขาตัวเอง — ปกติหน้านี้ใช้เฉพาะผู้ดูแล
