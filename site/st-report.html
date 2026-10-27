@@ -520,7 +520,7 @@ function report(){
   const dateTxt = pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(-2);
   const L = [];
   L.push('📆 Date: '+dateTxt, '🕛 ST Period: '+ROUND_LABEL[round], '🏬 Branch: '+settings.branch);
-  if(footTaps.length) L.push('👣 ลูกค้าเข้าร้าน : '+footIn()+' คน');   // จากหน้า Foot Traffic (เฉพาะสาขาที่ใช้นับ)
+  if(footTaps.length) L.push('🚶 ลูกค้าเข้าร้าน : '+footIn()+' คน');   // จากหน้า Foot Traffic (เฉพาะสาขาที่ใช้นับ)
   L.push('', 'Device ST Report');
   DEVICES.forEach(x=>{
     L.push(x.emoji+' '+x.name+' : '+sumOf(list,x.k)+' '+x.unit);
