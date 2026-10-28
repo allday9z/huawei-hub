@@ -377,7 +377,10 @@ function handleCredentialResponse(response){
   document.getElementById('appRoot').style.display = 'block';
   document.getElementById('userAvatar').src = payload.picture || '';
   document.getElementById('userEmail').textContent = payload.name || email;
-  loadReport();
+  // Also sign this device in on the hub (30-day session), so the next visit needs no sign-in.
+  fetch('/api/admin/whoami', { headers: { Authorization: 'Bearer ' + response.credential }, credentials: 'same-origin', cache: 'no-store' })
+    .catch(()=>{})
+    .finally(()=>{ loadViaHub().then(ok => { if(!ok) loadReport(); }); });
 }
 
 const SESSION_KEY = 'hub-dashboard-idtoken';
@@ -425,6 +428,8 @@ function reSignIn(message){
 function signOut(){
   showGate();
   try{ localStorage.removeItem('hub_user'); }catch(e){} // ออกจากระบบที่หน้าแรกด้วย (เข้าสู่ระบบร่วมกัน)
+  try{ fetch('/api/hub/logout', { method:'POST', credentials:'same-origin', keepalive:true }); }catch(e){}
+  hubMode = false;
   if(window.google && google.accounts) google.accounts.id.disableAutoSelect();
 }
 
@@ -501,6 +506,13 @@ window.onload = function(){
       '<p style="color:var(--fail);font-weight:700;font-size:19px;">ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ในไฟล์นี้ — เติม ?preview=1 ต่อท้าย URL เพื่อดูตัวอย่างหน้าตาได้โดยไม่ต้องล็อกอิน</p>';
     return;
   }
+  // Signed in on the hub (30-day device session) → open straight away, no second sign-in here
+  // (Antt, 28 Oct 2026). Only devices without a hub session see the Google button.
+  loadViaHub().then(ok => { if(!ok) startGoogle(); });
+};
+
+function startGoogle(){
+  if(!(window.google && google.accounts && google.accounts.id)){ setTimeout(startGoogle, 200); return; }
   const restored = restoreSession();
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
@@ -511,7 +523,63 @@ window.onload = function(){
   google.accounts.id.renderButton(document.getElementById('googleBtn'),
     { theme: 'outline', size: 'large', text: 'signin_with' });
   if(!restored) google.accounts.id.prompt();
-};
+}
+
+// The hub fetches the report for this device's hub sign-in (and refreshes it with our Google token
+// when we still have a valid one). Returns false when this device isn't signed in on the hub.
+let hubMode = false;
+async function loadViaHub(){
+  let token = null;
+  try{ token = localStorage.getItem(SESSION_KEY); }catch(e){}
+  if(token){
+    try{ const p = JSON.parse(b64UrlDecode(token.split('.')[1])); if(Number(p.exp||0)*1000 - 60000 <= Date.now()) token = null; }
+    catch(e){ token = null; }
+  }
+  let res, d;
+  try{
+    res = await fetch('/api/hub/checklist-report', { credentials:'same-origin', cache:'no-store', headers: token ? { 'X-Google-Token': token } : {} });
+    d = await res.json();
+  }catch(e){ return false; }
+  if(res.status === 403){
+    document.getElementById('appRoot').style.display = 'none';
+    document.getElementById('gate').style.display = 'flex';
+    const box = document.getElementById('deniedBox');
+    box.textContent = `บัญชี ${d.email || ''} ยังไม่ได้รับสิทธิ์เข้าถึง Dashboard นี้ — ติดต่อผู้ดูแลเพื่อขอสิทธิ์`;
+    box.style.display = 'block';
+    return true;
+  }
+  if(!d || !d.ok) return false;   // not signed in on the hub, or no report kept yet → Google sign-in
+  hubMode = true;
+  let hu = null; try{ hu = JSON.parse(localStorage.getItem('hub_user') || 'null'); }catch(e){}
+  const same = hu && String(hu.email || '').toLowerCase() === String(d.email).toLowerCase();
+  currentUser = { email: d.email, name: (same && hu.name) || d.email, picture: (same && hu.picture) || '' };
+  document.getElementById('deniedBox').style.display = 'none';
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  const av = document.getElementById('userAvatar');
+  if(currentUser.picture) av.src = currentUser.picture; else av.style.display = 'none';
+  document.getElementById('userEmail').textContent = currentUser.name;
+  showDataTime(d.at);
+  reportRows = normalizeRows(d.rows || []);
+  populateMonths();
+  populatePeriodSubSelect();
+  renderAll();
+  return true;
+}
+
+function showDataTime(at){
+  let el = document.getElementById('dataAt');
+  if(!el){
+    el = document.createElement('span');
+    el.id = 'dataAt';
+    el.style.cssText = 'color:var(--muted);font-size:14px;white-space:nowrap';
+    document.getElementById('userEmail').insertAdjacentElement('afterend', el);
+  }
+  const t = new Date(at);
+  const today = t.toDateString() === new Date().toDateString();
+  el.textContent = 'ข้อมูล ณ ' + (today ? '' : t.toLocaleDateString('th-TH', { day:'numeric', month:'short' }) + ' ') +
+    t.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }) + ' น.';
+}
 
 function showToast(msg){
   const t = document.getElementById('toast');

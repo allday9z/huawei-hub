@@ -326,6 +326,61 @@ export async function accountAccess(email: string) {
   return { isOwner, menus, canDashboard: !!menus && menus.includes(DASHBOARD_URL), allowed: isOwner || !!login, branch: lockedBranchFor(login, isOwner) }
 }
 
+/* ---------------- Store Morning Checklist dashboard on the hub sign-in ----------------
+   The dashboard data comes from the Apps Script web app (Google Sheet), which wants a Google ID token
+   (1 hour) on every call — so the page kept asking to sign in again. Now the page asks the hub instead
+   (Antt, 28 Oct 2026: sign in once): the 30-day device session decides who may view (owner or the
+   Dashboard menu on ⚙️), and the hub fetches the report with the latest still-valid Google token of a
+   dashboard viewer, keeping the last report so it still opens when no fresh token is around. */
+const DASH_BACKEND = process.env.DASHBOARD_BACKEND_URL ||
+  "https://script.google.com/macros/s/AKfycbxTc2A-lzNMDWYEKo-3YYMkK5Td4ApRtRM65Dy0SPCWnBv8MfZRMiLJ_dT_Z_U-Plk/exec"
+const DASH_FRESH_MS = 3 * 60_000
+let dashToken: { token: string; exp: number } | null = null
+let dashLoading: Promise<void> | null = null
+type DashReport = { rows: unknown[]; at: number }
+const tokenExp = (t: string) => { if (DEV_AUTH && t.startsWith("dev:")) return Date.now() + 3600e3; try { return Number(JSON.parse(Buffer.from(t.split(".")[1] ?? "", "base64url").toString()).exp || 0) * 1000 } catch { return 0 } }
+async function refreshDashReport(token: string): Promise<void> {
+  const res = await fetch(DASH_BACKEND + "?action=report&idToken=" + encodeURIComponent(token), { signal: AbortSignal.timeout(25_000), redirect: "follow" })
+  const d: any = await res.json()
+  if (!d?.ok || !Array.isArray(d.rows)) throw new Error(String(d?.error || "report " + res.status))
+  await store.set("ckdash_report", { rows: d.rows, at: Date.now() } satisfies DashReport)
+}
+// A dashboard viewer just proved a Google token (hub sign-in / renewal): keep it and refresh a stale report
+// in the background. Not for the Apps Script's own whoami call (it would call itself back).
+function noteDashToken(token: string, req: Request) {
+  if ((req.headers.get("user-agent") ?? "").includes("Google-Apps-Script")) return
+  const exp = tokenExp(token)
+  if (exp - 60_000 <= Date.now()) return
+  if (!dashToken || exp > dashToken.exp) dashToken = { token, exp }
+  ;(async () => {
+    const rep = await store.get("ckdash_report") as DashReport | null
+    if (rep && Date.now() - rep.at <= DASH_FRESH_MS) return
+    dashLoading ??= refreshDashReport(dashToken!.token).finally(() => { dashLoading = null })
+    await dashLoading
+  })().catch(e => console.error("[hub] dashboard report", String(e)))
+}
+async function dashReport(req: Request): Promise<Response> {
+  const email = (await sessionEmail(req)) ?? (await verifyGoogle(bearer(req)))
+  if (!email) return json({ ok: false, error: "auth" }, 401)
+  const a = await accountAccess(email)
+  if (!a.allowed || !(a.isOwner || a.canDashboard)) return json({ ok: false, error: "forbidden", email }, 403)
+  // A fresh Google token from this viewer (optional) — keep the newest one for refreshing.
+  const fresh = (req.headers.get("x-google-token") ?? "").trim()
+  if (fresh && canonEmail((await verifyGoogle(fresh)) ?? "") === canonEmail(email)) {
+    const exp = tokenExp(fresh)
+    if (!dashToken || exp > dashToken.exp) dashToken = { token: fresh, exp }
+  }
+  let rep = await store.get("ckdash_report") as DashReport | null
+  let warn = ""
+  if ((!rep || Date.now() - rep.at > DASH_FRESH_MS) && dashToken && dashToken.exp - 60_000 > Date.now()) {
+    dashLoading ??= refreshDashReport(dashToken.token).finally(() => { dashLoading = null })
+    try { await dashLoading; rep = await store.get("ckdash_report") as DashReport | null }
+    catch (e) { warn = String(e instanceof Error ? e.message : e); console.error("[hub] dashboard report", warn) }
+  }
+  if (!rep) return json({ ok: false, error: "nodata", email, warn })
+  return json({ ok: true, email, rows: rep.rows, at: rep.at, canRefresh: !!dashToken && dashToken.exp - 60_000 > Date.now() })
+}
+
 /* ---------------- helpers ---------------- */
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } })
@@ -475,8 +530,10 @@ export async function hubRoute(req: Request, url: URL): Promise<Response | null>
       // Allowed device: (re)issue the session cookie used by the record pages.
       if (a.allowed) res.headers.append("Set-Cookie", cookieHeader(await signSession(email), SESSION_DAYS * 86400))
       if (a.allowed) noteSeen(email).catch(e => console.error("[hub] seen", String(e)))
+      if (a.allowed && (a.isOwner || a.canDashboard)) noteDashToken(bearer(req), req)
       return res
     }
+    if (p === "/api/hub/checklist-report" && req.method === "GET") return await dashReport(req)
     if (p === "/api/hub/logout" && req.method === "POST") {
       const res = json({ ok: true }); res.headers.append("Set-Cookie", cookieHeader("", 0)); return res
     }
